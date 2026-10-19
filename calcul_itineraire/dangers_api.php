@@ -16,6 +16,7 @@ define('RATE_WINDOW', 60);        // fenêtre en secondes
 $allowed_origins = [
     'https://lamadgeo.alwaysdata.net',
     'http://lamadgeo.alwaysdata.net',
+    'https://mamadouba0228.github.io',
 ];
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if (in_array($origin, $allowed_origins)) {

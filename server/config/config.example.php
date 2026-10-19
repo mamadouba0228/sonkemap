@@ -7,6 +7,7 @@ return [
     'allowed_origins' => [
         'https://lamadgeo.alwaysdata.net',
         'http://lamadgeo.alwaysdata.net',
+        'https://mamadouba0228.github.io',
     ],
     'data_dir'        => __DIR__ . '/../data',
 ];

@@ -12,6 +12,7 @@ define('ORS_BASE',    'https://api.openrouteservice.org');
 $allowed_origins = [
     'https://lamadgeo.alwaysdata.net',
     'http://lamadgeo.alwaysdata.net',
+    'https://mamadouba0228.github.io',
     // Ajoutez d'autres domaines si nécessaire
 ];
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
