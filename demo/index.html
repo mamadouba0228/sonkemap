@@ -1262,6 +1262,165 @@
             border-bottom:13px solid #1C1C1E;
         }
 
+        /* ══════════════════════════════════════════════════════════════════
+           ══ DESIGN 2026 — refonte visuelle (CSS uniquement, aucun changement
+              de fonctionnement). Surcharge les styles ci-dessus.
+           ══════════════════════════════════════════════════════════════════ */
+        :root{
+            --blue:#1A6BFF;--blue-dark:#0F4FD6;--navy:#0B1B33;
+            --bg:#EEF2F8;--border:#E3E8F1;--text:#0B1B33;--text-2:#64738F;
+            --grad-blue:linear-gradient(135deg,#3B82FF 0%,#1A6BFF 55%,#0F4FD6 100%);
+            --grad-green:linear-gradient(135deg,#1BD37A 0%,#00B85C 100%);
+            --grad-red:linear-gradient(135deg,#FF5A4E 0%,#E8261B 100%);
+            --glass:rgba(255,255,255,.86);
+            --shadow-sm:0 1px 2px rgba(11,27,51,.06),0 2px 6px rgba(11,27,51,.06);
+            --shadow-md:0 2px 6px rgba(11,27,51,.06),0 8px 24px rgba(11,27,51,.10);
+            --shadow-lg:0 4px 10px rgba(11,27,51,.06),0 18px 48px rgba(11,27,51,.16);
+            --ring:0 0 0 3px rgba(26,107,255,.18);
+            --gn-red:#CE1126;--gn-yellow:#FCD116;--gn-green:#009460;
+        }
+        body{color:var(--text);-webkit-font-smoothing:antialiased;}
+        ::selection{background:rgba(26,107,255,.18);}
+        *{scrollbar-width:thin;scrollbar-color:#C9D2E3 transparent;}
+
+        /* ── En-tête : verre dépoli + liseré aux couleurs de la Guinée ── */
+        .header{background:rgba(255,255,255,.82);backdrop-filter:blur(18px) saturate(180%);-webkit-backdrop-filter:blur(18px) saturate(180%);border-bottom:none;box-shadow:0 1px 0 rgba(11,27,51,.05),0 6px 20px rgba(11,27,51,.06);}
+        .header::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,var(--gn-red) 0 33.33%,var(--gn-yellow) 33.33% 66.66%,var(--gn-green) 66.66% 100%);}
+        .header-inner{padding:0 10px;}
+        .brand{gap:8px;}
+        .brand-logo{width:30px;height:30px;filter:drop-shadow(0 2px 4px rgba(11,27,51,.18));}
+        .brand-name{font-size:15px;font-weight:800;letter-spacing:-.2px;color:var(--navy);}
+        .brand-sub{font-size:8px;letter-spacing:1.2px;background:var(--grad-blue);-webkit-background-clip:text;background-clip:text;color:transparent;}
+        #gps-dot{box-shadow:0 0 0 3px rgba(0,0,0,.04);}
+        .header-actions{gap:5px;}
+        .header-sep{height:20px;margin:0 2px;}
+        .header-btn,.poi-group-btn,.contact-btn,.urg-btn,.multistop-btn{width:34px;height:34px;border-radius:11px;box-shadow:var(--shadow-sm);transition:transform .18s,box-shadow .18s,background .18s;}
+        .header-btn,.poi-group-btn{background:#fff;border:1px solid var(--border);}
+        .header-btn img{width:16px;opacity:.8;}
+        .contact-btn{background:#ECFDF4;border:1px solid rgba(0,184,92,.35);}
+        .urg-btn{background:#FFF1F0;border:1px solid rgba(232,38,27,.35);}
+        .multistop-btn{background:#EEF4FF;border:1px solid rgba(26,107,255,.3);}
+        .pg-label,.contact-label,.urg-label,.ms2-label{font-size:6.5px;letter-spacing:-.1px;}
+        .pg-emoji,.contact-emoji,.urg-emoji{font-size:15px;}
+        .poi-group-btn.open,.multistop-btn.open{background:var(--grad-blue);border-color:transparent;box-shadow:0 4px 12px rgba(26,107,255,.35);}
+        .contact-btn.open{background:var(--grad-green);border-color:transparent;}
+        .urg-btn.open{background:var(--grad-red);border-color:transparent;}
+        .header-btn .badge,.poi-count,.multistop-badge{box-shadow:0 2px 6px rgba(11,27,51,.2);}
+
+        /* ── Carte de recherche départ / destination ── */
+        .search-panel{top:calc(var(--header-h) + var(--safe-top) + 12px);}
+        .search-card{border-radius:20px;border:1px solid rgba(255,255,255,.7);background:var(--glass);backdrop-filter:blur(16px) saturate(170%);-webkit-backdrop-filter:blur(16px) saturate(170%);box-shadow:var(--shadow-lg);transition:box-shadow .2s;}
+        .search-card:focus-within{box-shadow:var(--shadow-lg),var(--ring);}
+        .input-row{height:52px;padding:0 16px;}
+        .input-row input{font-size:15px;}
+        .input-row input::placeholder,.map-search-input-row input::placeholder,.go-addr-row input::placeholder,.dgm-addr-row input::placeholder,.ms-stop-input::placeholder{color:#9AA7BF;}
+        .sep{margin:0 16px 0 40px;background:var(--border);}
+        .dot{width:12px;height:12px;}
+        .dot.s{background:#fff;border:3px solid var(--red);}
+        .dot.e{background:var(--green);box-shadow:0 0 0 3px rgba(0,197,102,.18);}
+        .search-card-inner::before{content:"";position:absolute;left:21px;top:34px;height:36px;border-left:2px dotted #C3CCDD;pointer-events:none;}
+        .btn-swap{width:30px;height:30px;background:#fff;box-shadow:var(--shadow-sm);}
+        .mic-row-btn{width:28px;height:28px;border-radius:9px;border:1px solid #D6E2FA;background:#F3F7FF;}
+        .results-list,.map-search-panel,.poi-dd,.measure-dd,.urg-dd,.go-addr-results,.dgm-addr-results,.ms-autocomplete{border-radius:16px;box-shadow:var(--shadow-lg);border:1px solid var(--border);}
+        .results-list{margin-top:10px;}
+        .result-item,.map-search-item,.poi-dd-item,.measure-dd-item,.go-addr-item,.dgm-addr-item,.ms-ac-item{transition:background .15s;}
+
+        /* ── Boutons flottants sur la carte ── */
+        .fab,.compass-fab,.left-tool-btn,.measure-btn,.measure-fab,.danger-fab,.fab-voice{background:var(--glass);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.8);box-shadow:var(--shadow-md);transition:transform .18s,box-shadow .18s,background .18s;}
+        .fab{width:46px;height:46px;}
+        .fab img{width:22px;opacity:1;}
+        .compass-fab.active,.fab.active,#btn-map-search.active{background:#EEF4FF;border-color:var(--blue);box-shadow:var(--shadow-md),var(--ring);}
+        .left-tool-btn.active,.measure-fab.active,.measure-btn.active,.danger-fab.active{background:#FFF6E8;border-color:var(--orange);box-shadow:var(--shadow-md),0 0 0 3px rgba(255,149,0,.2);}
+        .waze-report-btn{background:var(--grad-red);box-shadow:0 6px 18px rgba(232,38,27,.45),0 0 0 4px rgba(255,255,255,.9);}
+        .waze-report-btn.editing{background:linear-gradient(135deg,#FFB020,#FF8A00);}
+
+        /* ── Barre du bas : fonds de plan, position, modes de transport ── */
+        .bottom-panel{padding-bottom:calc(14px + var(--safe-bottom));}
+        .controls-row{align-items:center;gap:6px;}
+        .layer-btns{gap:6px;}
+        .layer-btn{width:40px;height:40px;border-radius:13px;border:2.5px solid #fff;box-shadow:var(--shadow-md);}
+        .layer-btn img{border-radius:10px;}
+        .layer-btn-badge{border-radius:0 0 10px 10px;font-size:7.5px;}
+        .layer-btn.active{border-color:var(--blue);box-shadow:var(--shadow-md),var(--ring);}
+        .mode-group{gap:1px;padding:5px;border-radius:18px;background:var(--glass);backdrop-filter:blur(16px) saturate(170%);-webkit-backdrop-filter:blur(16px) saturate(170%);border:1px solid rgba(255,255,255,.8);box-shadow:var(--shadow-lg);}
+        .mode-btn{width:38px;height:42px;border-radius:13px;gap:3px;}
+        .mode-btn .mode-icon{font-size:17px;}
+        .mode-btn .mode-label{font-size:7px;}
+        .mode-btn.active{background:var(--grad-blue);box-shadow:0 4px 12px rgba(26,107,255,.4);}
+        .mode-btn.mode-reset{background:#FFF1F0;}
+
+        /* ── Carte résumé de l'itinéraire ── */
+        .info-card,.place-card{border-radius:22px;border:1px solid rgba(255,255,255,.8);background:rgba(255,255,255,.94);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:var(--shadow-lg);}
+        .info-summary{padding:16px 16px 14px;gap:10px;}
+        .info-arrival{font-size:17px;font-weight:800;letter-spacing:-.2px;}
+        .info-meta{margin-top:5px;}
+        .info-badge{font-size:12px;color:var(--text-2);}
+        .info-badge span{font-weight:500;}
+        .btn-nav-start,.btn-preview,.btn-steps,.btn-share-route{border-radius:12px;padding:9px 13px;}
+        .btn-nav-start{background:var(--grad-green);box-shadow:0 4px 12px rgba(0,184,92,.35);}
+        .btn-nav-start.navigating{background:var(--grad-red);box-shadow:0 4px 12px rgba(232,38,27,.35);}
+        .btn-share-route,.btn-steps{background:#fff;box-shadow:var(--shadow-sm);}
+        .place-card-name{font-size:14px;}
+        .preview-banner .pb-gps-btn{border-radius:12px;padding:8px 14px;font-size:11px;background:var(--grad-blue);box-shadow:0 4px 12px rgba(26,107,255,.35);}
+
+        /* ── Boutons d'action principaux ── */
+        .btn-preview,.go-calc-btn,.ms-calc-btn,.contact-send-btn,.pay-btn,.place-card-go,.poi-go-btn,.danger-item-go,.shop-buy-btn{background:var(--grad-blue);box-shadow:0 4px 14px rgba(26,107,255,.3);}
+        .go-calc-btn,.ms-calc-btn,.contact-send-btn,.pay-btn,.dgm-calc-btn,.dlp-add-btn{border-radius:16px;padding:15px;letter-spacing:.1px;}
+        .dgm-calc-btn,.dlp-add-btn{background:var(--grad-red);box-shadow:0 4px 14px rgba(232,38,27,.3);}
+        .ms-calc-btn:disabled,.contact-send-btn:disabled{background:#B7C1D3;box-shadow:none;}
+        .place-card-go{border-radius:12px;}
+
+        /* ── Panneaux du bas (bottom sheets) et panneaux latéraux ── */
+        .go-modal,.share-panel,.danger-type-popup,.dangers-list-panel,.danger-go-modal,.osm-panel,.contact-panel,.shop-panel,.pay-modal,.multistop-panel{border-radius:26px 26px 0 0;border-top:none;box-shadow:0 -10px 40px rgba(11,27,51,.18);}
+        .go-modal-handle,.share-panel-handle,.dtp-handle,.dgm-handle,.osm-handle,.contact-handle,.shop-handle,.pay-handle,.ms-handle{width:40px;height:5px;border-radius:3px;background:#D3DAE6;}
+        .side-panel{border-radius:24px 0 0 24px;}
+        .poi-panel{border-radius:0 24px 24px 0;}
+        .panel-title,.dlp-title,.dtp-title,.share-title{font-size:16px;font-weight:800;letter-spacing:-.2px;}
+        .panel-close,.go-close-btn,.dtp-close,.dlp-close,.dgm-close,.osm-head-close,.contact-close,.shop-close,.pay-close,.ms-close,.place-card-close,.geo-result-close{border-radius:50%;background:#F1F4F9;color:var(--text-2);transition:background .15s;}
+        .overlay,.go-overlay,.share-overlay,.danger-overlay,.danger-go-overlay,.osm-overlay,.contact-overlay,.shop-overlay,.pay-overlay,.ms-overlay{background:rgba(11,27,51,.38);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
+        .list-item{border-radius:14px;}
+        .list-icon,.poi-item-icon{border-radius:13px;}
+        .fh-tab.active{border-bottom-width:3px;}
+        .go-dep-btn,.dgm-dep-btn,.pay-method,.share-btn,.dtp-btn,.osm-card{border-radius:14px;}
+        .go-dep-btn.active,.dgm-dep-btn.active,.pay-method.active{box-shadow:var(--ring);}
+        .go-mode-btn.active{background:#EEF4FF;box-shadow:var(--ring);}
+        .go-addr-row,.dgm-addr-row,.ms-stop-item,.pay-phone-row{border-radius:14px;transition:border-color .2s,box-shadow .2s;}
+        .go-addr-row:focus-within,.dgm-addr-row:focus-within,.ms-stop-item:focus-within,.pay-phone-row:focus-within,.contact-input:focus,.contact-textarea:focus,.pay-card-input:focus{border-color:var(--blue);background:#fff;box-shadow:var(--ring);}
+        .geo-result-card,.measure-card{border-radius:18px;box-shadow:var(--shadow-lg);}
+        .measure-val-box{border-radius:12px;}
+        .route-label{border-radius:12px;}
+
+        /* ── Notifications ── */
+        #toast,.deep-link-toast{background:rgba(11,27,51,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:14px;padding:11px 18px;box-shadow:var(--shadow-lg);}
+        .edit-mode-bar{background:linear-gradient(135deg,#FFB020,#FF8A00);}
+        #offline-banner{background:linear-gradient(90deg,#FF8A00,#FFB020);}
+
+        /* ── Survol (ordinateur uniquement) ── */
+        @media (hover:hover){
+            .header-btn:hover,.poi-group-btn:hover,.contact-btn:hover,.urg-btn:hover,.multistop-btn:hover,
+            .fab:hover,.compass-fab:hover,.left-tool-btn:hover,.measure-btn:hover,.measure-fab:hover,.danger-fab:hover,.layer-btn:hover{transform:translateY(-1px);box-shadow:var(--shadow-lg);}
+            .waze-report-btn:hover{transform:translateY(-1px) scale(1.03);}
+            .mode-btn:not(.active):hover{background:rgba(26,107,255,.08);}
+            .result-item:hover,.map-search-item:hover,.poi-dd-item:hover,.measure-dd-item:hover,.go-addr-item:hover,.dgm-addr-item:hover,.ms-ac-item:hover,.poi-item:hover,.list-item:hover{background:#F4F7FC;}
+            .panel-close:hover,.go-close-btn:hover,.dtp-close:hover,.dlp-close:hover,.dgm-close:hover,.osm-head-close:hover,.contact-close:hover,.shop-close:hover,.pay-close:hover,.ms-close:hover,.place-card-close:hover{background:#E4E9F2;}
+            .go-calc-btn:hover,.ms-calc-btn:hover:not(:disabled),.contact-send-btn:hover:not(:disabled),.pay-btn:hover,.place-card-go:hover,.btn-preview:hover,.btn-nav-start:hover{filter:brightness(1.06);}
+        }
+
+        /* ── Grand écran : panneaux du bas centrés ── */
+        @media (min-width:720px){
+            .go-modal,.share-panel,.danger-type-popup,.dangers-list-panel,.danger-go-modal,.osm-panel,.contact-panel,.shop-panel,.pay-modal,.multistop-panel{max-width:520px;margin:0 auto;}
+        }
+
+        /* ── Petits téléphones ── */
+        @media (max-width:370px){
+            .brand-sub{display:none;}
+            .header-actions{gap:3px;}
+            .header-btn,.poi-group-btn,.contact-btn,.urg-btn,.multistop-btn{width:31px;height:31px;border-radius:10px;}
+            .mode-btn{width:34px;}
+            .layer-btn{width:36px;height:36px;}
+            .fab{width:42px;height:42px;}
+        }
+
     </style>
 </head>
 <body>
