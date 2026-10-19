@@ -1,0 +1,21 @@
+# Secrets
+server/config/config.php
+calcul_itineraire/ors_proxy.php
+.claude/
+
+# Données des utilisateurs (signalements avec deviceId)
+calcul_itineraire/dangers_data.json
+
+# Builds GitHub Pages locaux
+_site/
+
+# Données générées en production
+server/data/*.json
+!server/data/.gitkeep
+
+# Divers
+node_modules/
+vendor/
+.vscode/
+.DS_Store
+Thumbs.db
