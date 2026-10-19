@@ -1,0 +1,37 @@
+{
+  "name": "SonkeMap — Mieux s'orienter en Guinée",
+  "short_name": "SonkeMap",
+  "description": "Application de navigation et cartographie pour la Guinée",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0A1628",
+  "theme_color": "#1A6BFF",
+  "lang": "fr",
+  "categories": ["navigation", "maps", "travel"],
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/128/854/854878.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/854/854878.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Calculer un itinéraire",
+      "short_name": "Itinéraire",
+      "description": "Ouvrir SonkeMap et calculer un itinéraire",
+      "url": "./",
+      "icons": [{ "src": "https://cdn-icons-png.flaticon.com/128/854/854878.png", "sizes": "128x128" }]
+    }
+  ]
+}
