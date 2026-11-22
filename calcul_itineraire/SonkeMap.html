@@ -675,6 +675,22 @@
 
         .dgm-del-btn{display:block;width:100%;padding:12px;background:#FFF0F0;color:var(--red);border:1.5px solid rgba(255,59,48,.3);border-radius:14px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;text-align:center;}
         .dgm-del-btn:active{transform:scale(.97);background:#FFE0DE;}
+        /* « Toujours là ? » au passage d'un danger : gros boutons, utilisable en roulant */
+        .still-ask{position:fixed;left:50%;bottom:calc(120px + var(--safe-bottom));transform:translate(-50%,30px);opacity:0;pointer-events:none;width:calc(100% - 24px);max-width:420px;z-index:4500;background:#fff;border-radius:20px;border:1px solid var(--border);box-shadow:0 12px 40px rgba(0,0,0,.25);padding:12px 12px 0;overflow:hidden;transition:transform .3s,opacity .3s;}
+        .still-ask.show{transform:translate(-50%,0);opacity:1;pointer-events:auto;}
+        .still-ask-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+        .still-ask-emoji{font-size:30px;}
+        .still-ask-text{flex:1;display:flex;flex-direction:column;}
+        .still-ask-text b{font-size:15px;color:var(--navy);}
+        .still-ask-text span{font-size:13px;color:var(--text-2);font-weight:600;}
+        .still-ask-close{width:28px;height:28px;border-radius:9px;background:var(--bg);border:none;cursor:pointer;font-size:13px;}
+        .still-ask-btns{display:flex;gap:8px;padding-bottom:12px;}
+        .still-ask-btn{flex:1;padding:15px 8px;border-radius:14px;font:800 15px 'DM Sans',sans-serif;cursor:pointer;}
+        .still-ask-btn.yes{background:#E8FFF4;color:#00894A;border:1.5px solid rgba(0,184,92,.35);}
+        .still-ask-btn.no{background:#FFF0F0;color:var(--red);border:1.5px solid rgba(255,59,48,.3);}
+        .still-ask-bar{height:4px;margin:0 -12px;background:var(--blue);transform-origin:left;transform:scaleX(1);}
+        .still-ask-bar.run{animation:still-ask-count 15s linear forwards;}
+        @keyframes still-ask-count{to{transform:scaleX(0);}}
         .dgm-vote-row{display:flex;gap:8px;}
         .dgm-vote-btn{flex:1;padding:12px 8px;border-radius:14px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:transform .15s;}
         .dgm-vote-btn:active{transform:scale(.97);}
@@ -1517,6 +1533,20 @@
         </div>
         <div class="dgm-vote-info" id="dgm-vote-info"></div>
     </div>
+</div>
+
+<!-- ══ « TOUJOURS LÀ ? » au passage d'un danger ══ -->
+<div class="still-ask" id="still-ask" role="dialog" aria-label="Le danger est-il toujours là ?">
+    <div class="still-ask-head">
+        <span class="still-ask-emoji" id="still-ask-emoji">⚠️</span>
+        <div class="still-ask-text"><b id="still-ask-label">Danger</b><span>Toujours là ?</span></div>
+        <button class="still-ask-close" id="still-ask-close" aria-label="Fermer">✕</button>
+    </div>
+    <div class="still-ask-btns">
+        <button class="still-ask-btn yes" id="still-ask-yes">👍 Toujours là</button>
+        <button class="still-ask-btn no" id="still-ask-no">👎 Plus là</button>
+    </div>
+    <div class="still-ask-bar" id="still-ask-bar"></div>
 </div>
 
 <!-- ══ BANDEAU MODE ÉDITION DANGER ══ -->
@@ -3710,7 +3740,50 @@ $('#dtp-close, #danger-overlay').on('click', function(){
 //   }
 var dangerAlertState = {};
 
+// ── « Toujours là ? » : demandé une fois quand on vient de dépasser le danger d'un autre usager ──
+var stillAskedIds = {};   // dangers déjà demandés pendant cette session
+function checkStillThere(lonLat){
+    userDangers.forEach(function(d){
+        if(stillAskedIds[d.id] || isMyDanger(d) || myVotes()[d.id]) return;
+        var distM = haversineKm(lonLat[1], lonLat[0], d.lat, d.lon) * 1000;
+        var s = stillAskedIds['_' + d.id] || (stillAskedIds['_' + d.id] = {min: distM});
+        if(distM < s.min) s.min = distM;
+        // Passé à moins de 60 m, puis on s'éloigne d'au moins 40 m
+        if(s.min < 60 && distM > s.min + 40){
+            stillAskedIds[d.id] = true;
+            askStillThere(d);
+        }
+    });
+}
+var stillAskTimer = null, stillAskId = null;
+function askStillThere(d){
+    if($('#still-ask').hasClass('show')) return; // une question à la fois
+    var t = DANGER_TYPES[d.type] || DANGER_TYPES.other;
+    stillAskId = d.id;
+    $('#still-ask-emoji').text(t.emoji);
+    $('#still-ask-label').text(t.label);
+    $('#still-ask-bar').removeClass('run');
+    $('#still-ask').addClass('show');
+    void document.getElementById('still-ask-bar').offsetWidth; // relancer l'animation
+    $('#still-ask-bar').addClass('run');
+    if(isNavigating) speak(t.label + ' : toujours là ?');
+    clearTimeout(stillAskTimer);
+    stillAskTimer = setTimeout(hideStillAsk, 15000); // sans réponse : on n'insiste pas
+}
+function hideStillAsk(){
+    clearTimeout(stillAskTimer);
+    $('#still-ask').removeClass('show');
+    stillAskId = null;
+}
+$(document).on('click', '#still-ask-yes, #still-ask-no', function(){
+    var id = stillAskId;
+    hideStillAsk();
+    if(id) voteDanger(id, this.id === 'still-ask-no' ? 'gone' : 'still');
+});
+$(document).on('click', '#still-ask-close', hideStillAsk);
+
 function checkDangersProximity(lonLat){
+    checkStillThere(lonLat);   // aussi hors navigation, dès que le GPS suit l'usager
     if(!isNavigating) return;
 
     userDangers.forEach(function(d){
