@@ -15,6 +15,7 @@
   <tr>
     <td align="center"><img src="docs/screenshots/itineraire.png" width="260" alt="Itinéraire Sonké → Labé avec deux alternatives"><br><sub>Itinéraire avec alternative</sub></td>
     <td align="center"><img src="docs/screenshots/danger.png" width="260" alt="Accident signalé sur la N27 à Labé"><br><sub>Accident signalé par un usager</sub></td>
+    <td align="center"><img src="docs/screenshots/type-danger.jpg" width="260" alt="Choix du type de danger à signaler"><br><sub>Choix du type de danger</sub></td>
   </tr>
 </table>
 
