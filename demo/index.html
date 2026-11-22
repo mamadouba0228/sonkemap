@@ -497,6 +497,16 @@
         /* Overlay transparent */
         .danger-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:4599;display:none;backdrop-filter:blur(1px);}
         .danger-overlay.show{display:block;}
+        /* Choix : danger à ma position ou sur la carte */
+        .dwp-choices{display:flex;flex-direction:column;gap:10px;padding:4px 12px 8px;}
+        .dwp-btn{display:flex;align-items:center;gap:14px;width:100%;padding:14px;border-radius:16px;border:1.5px solid var(--border);background:var(--bg);font-family:'DM Sans',sans-serif;text-align:left;cursor:pointer;transition:transform .15s;}
+        .dwp-btn:active{transform:scale(.98);}
+        .dwp-btn.dwp-gps{border-color:rgba(26,107,255,.35);background:#EEF4FF;}
+        .dwp-emoji{font-size:26px;flex-shrink:0;}
+        .dwp-text{display:flex;flex-direction:column;gap:2px;}
+        .dwp-text b{font-size:14px;color:var(--navy);}
+        .dwp-text small{font-size:12px;color:var(--text-2);}
+        .dtp-preview em{font-style:normal;font-weight:700;color:var(--blue);}
 
         /* Liste des dangers actifs */
         .dangers-list-panel{
@@ -1501,6 +1511,25 @@
 
 <!-- ══ OVERLAY + POPUP TYPE DANGER ══ -->
 <div class="danger-overlay" id="danger-overlay"></div>
+
+<!-- ══ OÙ EST LE DANGER ? (position GPS ou carte) ══ -->
+<div class="danger-type-popup" id="danger-where-popup">
+    <div class="dtp-handle"></div>
+    <div class="dtp-head">
+        <div class="dtp-title">Où est le danger ?</div>
+        <button class="dtp-close" id="dwp-close">✕</button>
+    </div>
+    <div class="dwp-choices">
+        <button class="dwp-btn dwp-gps" id="dwp-gps">
+            <span class="dwp-emoji">📍</span>
+            <span class="dwp-text"><b>À ma position</b><small>Je suis juste à côté du danger</small></span>
+        </button>
+        <button class="dwp-btn" id="dwp-map">
+            <span class="dwp-emoji">🗺️</span>
+            <span class="dwp-text"><b>Placer sur la carte</b><small>Je touche l'endroit exact sur la carte</small></span>
+        </button>
+    </div>
+</div>
 <div class="danger-type-popup" id="danger-type-popup">
     <div class="dtp-handle"></div>
     <div class="dtp-head">
@@ -2070,6 +2099,7 @@ let activeInputId=null,searchTimeout;
 let currentSteps=[],currentStepIndex=0;
 let isNavigating=false,isLocating=false,departIsGPS=false;
 let userCoord=null,recalcTimeout=null,lastRouteCoords=null;
+let gpsAccuracy=null,gpsFixTime=0; // précision (m) et heure du dernier point GPS
 let favorites=JSON.parse(localStorage.getItem('snk_favs')||'[]');
 let history=JSON.parse(localStorage.getItem('snk_hist')||'[]');
 let activePoi=null;
@@ -2204,7 +2234,7 @@ function startNativeWatch(){
     if(!navigator.geolocation){showToast('⚠️ Géolocalisation non supportée');return;}
     watchId=navigator.geolocation.watchPosition(pos=>{
         const{longitude:lon,latitude:lat,accuracy,heading:gpsHeading,speed:gpsSpeed}=pos.coords;
-        userCoord=[lon,lat];updateAccuracyIndicator(accuracy);
+        userCoord=[lon,lat];gpsAccuracy=accuracy;gpsFixTime=Date.now();updateAccuracyIndicator(accuracy);
         const coord=ol.proj.fromLonLat(userCoord);
         let hdg=gpsHeading;
         if((hdg===null||isNaN(hdg))&&lastGpsPositions.length>=1){const prev=lastGpsPositions[lastGpsPositions.length-1];const d=haversineKm(prev[1],prev[0],lat,lon);if(d>0.005)hdg=calcBearing(prev[1],prev[0],lat,lon);}
@@ -3157,10 +3187,11 @@ function stopDangerEdit(){
 }
 
 // ── Afficher le popup de choix du type ──
-function showDangerTypePopup(lon, lat){
+function showDangerTypePopup(lon, lat, gpsAccuracy){
     pendingCoord = [lon, lat];
-    // Afficher coordonnées dans le preview
-    $('#dtp-preview').html('📍 <span>' + lat.toFixed(5) + ', ' + lon.toFixed(5) + '</span>');
+    // Afficher coordonnées dans le preview (+ précision si placé par GPS)
+    $('#dtp-preview').html('📍 <span>' + lat.toFixed(5) + ', ' + lon.toFixed(5) + '</span>'
+        + (gpsAccuracy ? ' <em>Ma position ± ' + Math.round(gpsAccuracy) + ' m</em>' : ''));
     $('#danger-type-popup').addClass('show');
     $('#danger-overlay').addClass('show');
 }
@@ -3226,16 +3257,62 @@ $('#waze-report-btn').on('click', function(){
         // Il y a des dangers → afficher la liste avec option d'ajouter
         openDangerList();
     } else {
-        // Pas de dangers → activer directement le mode édition
-        startDangerEdit();
+        // Pas de dangers → demander directement où se trouve le danger
+        openDangerWhere();
     }
 });
 
 // Depuis la liste, ajouter un nouveau
 $('#dlp-add-btn').on('click', function(){
     closeDangerList();
+    openDangerWhere();
+});
+
+// ── Où est le danger ? À ma position (GPS) ou sur la carte ──
+function openDangerWhere(){
+    $('#danger-where-popup').addClass('show');
+    $('#danger-overlay').addClass('show');
+}
+function closeDangerWhere(){
+    $('#danger-where-popup').removeClass('show');
+    $('#danger-overlay').removeClass('show');
+}
+$('#dwp-close, #danger-overlay').on('click', closeDangerWhere);
+$('#dwp-map').on('click', function(){
+    closeDangerWhere();
     startDangerEdit();
 });
+$('#dwp-gps').on('click', function(){
+    closeDangerWhere();
+    reportDangerAtMyPosition();
+});
+
+function reportDangerAtMyPosition(){
+    function useFix(lon, lat, acc){
+        map.getView().animate({center: ol.proj.fromLonLat([lon, lat]), zoom: Math.max(map.getView().getZoom() || 0, 17), duration: 600});
+        if(acc > 100) showToast('⚠️ Position peu précise (± ' + Math.round(acc) + ' m)', 3500);
+        showDangerTypePopup(lon, lat, acc);
+    }
+    // Position GPS récente (moins de 30 s) : on l'utilise directement
+    if(userCoord && gpsFixTime && (Date.now() - gpsFixTime) < 30000){
+        useFix(userCoord[0], userCoord[1], gpsAccuracy);
+        return;
+    }
+    if(!navigator.geolocation){
+        showToast('⚠️ Géolocalisation non disponible — placez le danger sur la carte', 3500);
+        startDangerEdit();
+        return;
+    }
+    showToast('📡 Recherche de votre position…', 4000);
+    navigator.geolocation.getCurrentPosition(function(pos){
+        useFix(pos.coords.longitude, pos.coords.latitude, pos.coords.accuracy);
+    }, function(err){
+        showToast(err.code === 1
+            ? '⚠️ Autorisation GPS refusée — placez le danger sur la carte'
+            : '⚠️ Position introuvable — placez le danger sur la carte', 4000);
+        startDangerEdit();
+    }, {enableHighAccuracy: true, timeout: 15000, maximumAge: 10000});
+}
 
 // Fermer liste
 $('#dlp-close').on('click', closeDangerList);
