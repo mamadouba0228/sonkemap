@@ -2361,10 +2361,12 @@ const POI_CFG={
 };
 
 const layerOSM=new ol.layer.Tile({source:new ol.source.OSM()});
-// Fonds Esri (autorisés avec mention de la source). Au-delà du zoom 19, les tuiles sont agrandies.
+// Fonds Esri (autorisés avec mention de la source).
+// En Guinée, Esri n'a des images partout que jusqu'au zoom 17 (au-delà : tuile « Map data not yet available »
+// à Labé, Kindia, Kankan, en brousse…). On s'arrête donc à 17 et OpenLayers agrandit les tuiles au-delà.
 const ESRI='https://server.arcgisonline.com/ArcGIS/rest/services/';
 const ESRI_ATTR='Imagerie © <a href="https://www.esri.com" target="_blank" rel="noopener">Esri</a>, Vantor, Earthstar Geographics';
-function esriSource(service,attr){return new ol.source.XYZ({url:ESRI+service+'/MapServer/tile/{z}/{y}/{x}',maxZoom:19,crossOrigin:'anonymous',attributions:attr});}
+function esriSource(service,attr){return new ol.source.XYZ({url:ESRI+service+'/MapServer/tile/{z}/{y}/{x}',maxZoom:17,crossOrigin:'anonymous',attributions:attr});}
 const layerSat=new ol.layer.Tile({source:esriSource('World_Imagery',ESRI_ATTR),visible:false});
 const layerHybrid=new ol.layer.Group({visible:false,layers:[
     new ol.layer.Tile({source:esriSource('World_Imagery',ESRI_ATTR)}),
