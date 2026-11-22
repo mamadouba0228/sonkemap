@@ -334,41 +334,43 @@
         /* ══════════════════════════════════════════════════
            ── LABELS ITINÉRAIRES — fond transparent, contour noir
            ══════════════════════════════════════════════════ */
+        /* Bulles d'itinéraire : posées à côté du tracé (jamais dessus), avec une pointe vers la route.
+           Le côté est choisi en JS (classes tail-top/bottom/left/right). */
         .route-label {
-            /* Fond blanc semi-transparent */
-            background: rgba(255,255,255,0.72);
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
+            background: #fff;
             border-radius: 10px;
-            /* Contour noir net */
-            border: 2px solid rgba(10, 22, 40, 0.85);
-            box-shadow: 0 2px 8px rgba(0,0,0,.25);
-            padding: 5px 10px;
+            border: 1.5px solid rgba(10, 22, 40, 0.35);
+            box-shadow: 0 2px 8px rgba(0,0,0,.22);
+            padding: 3px 8px;
             display: flex;
             align-items: center;
             cursor: pointer;
             transition: border-color .18s, box-shadow .18s;
             white-space: nowrap;
-            /* Centré sur le point d'ancrage (directement sur le tracé) */
-            transform: translate(-50%, -50%);
             pointer-events: all;
             position: relative;
         }
+        .route-label::after {
+            content: ''; position: absolute; width: 8px; height: 8px;
+            background: #fff; border: inherit;
+        }
+        .route-label.tail-bottom::after { left: 50%; bottom: -5.5px; transform: translateX(-50%) rotate(45deg); border-top: none; border-left: none; }
+        .route-label.tail-top::after    { left: 50%; top: -5.5px;    transform: translateX(-50%) rotate(45deg); border-bottom: none; border-right: none; }
+        .route-label.tail-left::after   { top: 50%; left: -5.5px;    transform: translateY(-50%) rotate(45deg); border-top: none; border-right: none; }
+        .route-label.tail-right::after  { top: 50%; right: -5.5px;   transform: translateY(-50%) rotate(45deg); border-bottom: none; border-left: none; }
         .route-label:hover {
             border-color: rgba(10,22,40,1);
             box-shadow: 0 3px 12px rgba(0,0,0,.32);
         }
         /* Sélectionné → contour rose */
         .route-label.selected {
-            border: 2.5px solid #FF2D87;
-            box-shadow: 0 3px 14px rgba(255,45,135,.4);
+            border: 2px solid #FF2D87;
+            box-shadow: 0 3px 12px rgba(255,45,135,.35);
         }
         /* Label alternatif — légèrement estompé */
         .route-label.alt-label {
-            border-color: rgba(10,22,40,0.55);
             box-shadow: 0 1px 6px rgba(0,0,0,.16);
-            opacity: .88;
-            transform: translate(-50%, -50%);
+            opacity: .9;
         }
         .route-label.alt-label.selected {
             border-color: #FF2D87;
@@ -377,19 +379,17 @@
         .route-label-icon { display: none; }
         .route-label-body {}
         .route-label-dur {
-            font-size: 13px;
-            font-weight: 900;
-            color: #0A1628;
-            line-height: 1.2;
-            letter-spacing: .2px;
-        }
-        .route-label-dist {
-            font-size: 10px;
+            font-size: 12px;
             font-weight: 800;
             color: #0A1628;
+            line-height: 1.2;
+        }
+        .route-label-dist {
+            font-size: 9px;
+            font-weight: 600;
+            color: #4A5670;
             font-family: 'DM Mono', monospace;
-            margin-top: 2px;
-            letter-spacing: .1px;
+            margin-top: 1px;
         }
 
         .danger-fab{position:fixed;left:14px;top:calc(50% - 74px);width:44px;height:44px;border-radius:50%;background:var(--card);border:1px solid var(--border);box-shadow:0 4px 18px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;z-index:2050;transition:all .2s;-webkit-tap-highlight-color:transparent;}
@@ -1114,7 +1114,7 @@
         .waze-report-btn.editing{background:linear-gradient(135deg,#FFB020,#FF8A00);}
 
         /* ── Barre du bas : fonds de plan, position, modes de transport ── */
-        .bottom-panel{padding-bottom:calc(14px + var(--safe-bottom));}
+        .bottom-panel{padding-bottom:calc(20px + var(--safe-bottom));}
         .controls-row{align-items:center;gap:6px;}
         .layer-btns{gap:6px;}
         .layer-btn{width:40px;height:40px;border-radius:13px;border:2.5px solid #fff;box-shadow:var(--shadow-md);}
@@ -1192,7 +1192,7 @@
 
         /* ── Petits téléphones ── */
         /* Mention des sources de la carte : une ligne discrète tout en bas, sous les panneaux */
-        .ol-attribution{position:fixed!important;right:0!important;bottom:0!important;left:auto!important;z-index:2001;max-width:100%;padding:1px 6px calc(1px + var(--safe-bottom))!important;border-radius:6px 0 0 0!important;background:rgba(255,255,255,.75)!important;font-size:9px;line-height:1.3;color:#444;}
+        .ol-attribution{position:fixed!important;right:0!important;bottom:0!important;left:auto!important;z-index:2001;max-width:100%;padding:1px 6px calc(1px + var(--safe-bottom))!important;border-radius:6px 0 0 0!important;background:rgba(255,255,255,.75)!important;font-size:8.5px;line-height:1.25;color:#444;}
         .ol-attribution ul{margin:0;padding:0;}
         .ol-attribution li{display:inline;}
         .ol-attribution a{color:#1A6BFF;text-decoration:none;}
@@ -2201,7 +2201,7 @@ function calcRoute(silent=false){
         if(alts.length>1){const af=new ol.Feature({geometry:new ol.geom.LineString(alts[1].coords.map(c=>ol.proj.fromLonLat(c)))});af.set('routeType','alt');srcRoute.addFeature(af);}
         const mf=new ol.Feature({geometry:new ol.geom.LineString(alts[0].coords.map(c=>ol.proj.fromLonLat(c)))});mf.set('routeType','main');srcRoute.addFeature(mf);
         applyRouteStyle(0);refreshMarkers();applySelectedRoute(0,silent);
-        if(!silent){showRouteLabels();const allC=alts.flatMap(r=>r.coords.map(c=>ol.proj.fromLonLat(c)));const ext=ol.extent.boundingExtent(allC);map.getView().fit(ext,{padding:[160,60,220,60],duration:900});addToHistory(p1,pointNames[1]);if(p1&&p1[1]&&p1[0])fetchWeather(p1[1],p1[0],pointNames[1]);}
+        if(!silent){showRouteLabels();const allC=alts.flatMap(r=>r.coords.map(c=>ol.proj.fromLonLat(c)));const ext=ol.extent.boundingExtent(allC);map.getView().fit(ext,{padding:[160,75,220,75],duration:900});addToHistory(p1,pointNames[1]);if(p1&&p1[1]&&p1[0])fetchWeather(p1[1],p1[0],pointNames[1]);}
         updateRouteButtons();
     }
     const getUrl=`${ORS_PROXY}?path=/v2/directions/${apiMode}&start=${p0[0]},${p0[1]}&end=${p1[0]},${p1[1]}`;
@@ -2267,16 +2267,59 @@ function showRouteLabels(){
         const el=document.getElementById('route-label-'+i);
         if(!el)return;
         el.innerHTML=`<div class="route-label-body"><div class="route-label-dur">${modeIcon} ${info.durationText}</div><div class="route-label-dist">${r.distanceKm} km · ~${speedKmh} km/h</div></div>`;
-        el.className='route-label'+(i===1?' alt-label':'')+(i===selectedRouteIdx?' selected':'');
+        if(!r._label)r._label=computeLabelPlacement(i);
+        const pl=LABEL_SIDES[r._label.side];
+        el.className='route-label tail-'+pl.tail+(i===1?' alt-label':'')+(i===selectedRouteIdx?' selected':'');
         el.style.display='flex';
         el.dataset.idx=i;
-        const fraction=i===0?0.42:0.58;
-        // Positionner directement sur le tracé (pas d'offset)
-        const n=r.coords.length;
-        const idx=Math.min(Math.floor(n*fraction),n-1);
-        labelOverlays[i].setPosition(ol.proj.fromLonLat(r.coords[idx]));
+        labelOverlays[i].setPositioning(pl.positioning);
+        labelOverlays[i].setOffset(pl.offset);
+        labelOverlays[i].setPosition(r._label.anchor);
     });
     if(routeAlternatives.length<2){const el1=document.getElementById('route-label-1');if(el1)el1.style.display='none';labelOverlays[1].setPosition(undefined);}
+}
+
+// Côté où poser la bulle par rapport au point d'ancrage sur le tracé
+const LABEL_SIDES={
+    up:   {positioning:'bottom-center',offset:[0,-9],tail:'bottom'},
+    down: {positioning:'top-center',   offset:[0,9], tail:'top'},
+    right:{positioning:'center-left',  offset:[9,0], tail:'left'},
+    left: {positioning:'center-right', offset:[-9,0],tail:'right'}
+};
+// Choisit le point d'ancrage et le côté de la bulle (calculé une fois par itinéraire) :
+// - avec une alternative : le point du tracé le plus éloigné de l'autre itinéraire, bulle tournée
+//   à l'opposé de celui-ci → les deux bulles ne se chevauchent pas et désignent clairement leur trajet ;
+// - sinon : le milieu du trajet, bulle tournée vers l'extérieur de la courbe.
+function computeLabelPlacement(i){
+    const coords=routeAlternatives[i].coords.map(c=>ol.proj.fromLonLat(c));
+    const n=coords.length;
+    let anchor=coords[Math.floor(n/2)],from=null;
+    const other=routeAlternatives.length>1?routeAlternatives[i===0?1:0]:null;
+    if(other&&n>2){
+        const otherLine=new ol.geom.LineString(other.coords.map(c=>ol.proj.fromLonLat(c)));
+        const step=Math.max(1,Math.floor(n/150));
+        let best=-1;
+        // On ignore les 10 % aux extrémités : les trajets y sont communs (départ, arrivée)
+        for(let k=Math.floor(n*0.1);k<Math.ceil(n*0.9);k+=step){
+            const q=otherLine.getClosestPoint(coords[k]);
+            const d=Math.hypot(coords[k][0]-q[0],coords[k][1]-q[1]);
+            if(d>best){best=d;anchor=coords[k];from=q;}
+        }
+        if(best<1)from=null; // trajets confondus : retour au cas simple
+    }
+    if(!from){
+        // Centre du trajet (moyenne des points) : la bulle part dans la direction opposée
+        let sx=0,sy=0;coords.forEach(p=>{sx+=p[0];sy+=p[1];});
+        from=[sx/n,sy/n];
+        if(Math.hypot(anchor[0]-from[0],anchor[1]-from[1])<1){
+            // Trajet rectiligne : perpendiculaire au tracé
+            const a=coords[Math.max(0,Math.floor(n/2)-1)],b=coords[Math.min(n-1,Math.floor(n/2)+1)];
+            from=[anchor[0]+(b[1]-a[1]),anchor[1]-(b[0]-a[0])];
+        }
+    }
+    const dx=anchor[0]-from[0],dy=anchor[1]-from[1]; // en coordonnées carte : y vers le haut
+    const side=Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'up':'down');
+    return{anchor,side};
 }
 function hideRouteLabels(){[0,1].forEach(i=>{const el=document.getElementById('route-label-'+i);if(el)el.style.display='none';labelOverlays[i].setPosition(undefined);});}
 map.getView().on('change:resolution',()=>{if(routeAlternatives.length>0 && !isNavigating)showRouteLabels();});
