@@ -2307,6 +2307,17 @@ function segHitsRect(p,q,r){
     }
     return true;
 }
+// Point le plus proche de p sur une polyligne (pixels) et sa distance
+function closestOnLine(p,line){
+    let bd=Infinity,bq=line[0];
+    for(let k=1;k<line.length;k++){
+        const a=line[k-1],b=line[k],dx=b[0]-a[0],dy=b[1]-a[1],l2=dx*dx+dy*dy;
+        let t=l2?((p[0]-a[0])*dx+(p[1]-a[1])*dy)/l2:0;t=Math.max(0,Math.min(1,t));
+        const x=a[0]+t*dx,y=a[1]+t*dy,d=Math.hypot(p[0]-x,p[1]-y);
+        if(d<bd){bd=d;bq=[x,y];}
+    }
+    return{d:bd,q:bq};
+}
 // Nombre de segments des tracés qui passent sous la bulle
 function routeHits(r,lines){
     let n=0;
@@ -2358,14 +2369,29 @@ function placeRouteLabels(){
         if(!labelOverlays[i].getPosition())labelOverlays[i].setPosition(map.getCoordinateFromPixel(pts[0]));
         const w=el.offsetWidth||110,h=el.offsetHeight||34;
         const other=lines.length>1?lines[i===0?1:0]:null;
+        // Points d'ancrage possibles : uniquement la partie du tracé qui est SÉPARÉE de l'autre itinéraire
+        // (au moins 14 px à l'écran). Sur une portion commune, on ne saurait pas à quel trajet la bulle se rapporte.
+        let cands=[];
+        for(let k=0;k<pts.length;k++){
+            const a=pts[k];
+            if(a[0]<0||a[1]<0||a[0]>W||a[1]>H)continue;                       // hors écran
+            if(obstacles.some(o=>a[0]>=o[0]&&a[0]<=o[2]&&a[1]>=o[1]&&a[1]<=o[3]))continue; // sous un bouton
+            const near=other?closestOnLine(a,other):null;
+            cands.push({a,k,d:near?near.d:Infinity,q:near?near.q:null});
+        }
+        if(other){
+            const div=cands.filter(c=>c.d>=14);
+            if(div.length)cands=div;
+            else{ // zoom très éloigné : les trajets se confondent presque, on prend les points les plus écartés
+                const maxD=Math.max(0,...cands.map(c=>c.d));
+                cands=cands.filter(c=>c.d>=maxD*0.7);
+            }
+        }
+        const step=Math.max(1,Math.floor(cands.length/40));
         let best=null;
-        const N=24;
-        for(let s=1;s<N;s++){
-            const f=s/N;
-            const a=pts[Math.min(pts.length-1,Math.floor(f*pts.length))];
-            // Distance à l'autre tracé : on préfère ancrer là où les trajets se séparent
-            let dOther=200;
-            if(other){dOther=Infinity;for(let k=0;k<other.length;k+=2){const d=Math.abs(other[k][0]-a[0])+Math.abs(other[k][1]-a[1]);if(d<dOther)dOther=d;}}
+        for(let s=0;s<cands.length;s+=step){
+            const c=cands[s],a=c.a;
+            const f=c.k/(pts.length-1);
             for(const side in LABEL_SIDES){
                 const r=labelRect(side,a[0],a[1],w,h);
                 const m=[r[0]-6,r[1]-6,r[2]+6,r[3]+6]; // marge (pointe, ombre)
@@ -2374,12 +2400,17 @@ function placeRouteLabels(){
                 for(const o of obstacles)score+=rectOverlap(m,o)*3;
                 for(const p of placed)score+=rectOverlap(m,p)*20;
                 score+=routeHits(m,lines)*400;
-                score-=Math.min(dOther,120)*2;
+                if(c.q){
+                    score-=Math.min(c.d,120)*2;  // plus le trajet est écarté de l'autre, mieux c'est
+                    // Bulle tournée vers l'autre itinéraire : ambigu, on préfère l'opposé
+                    const cx=(r[0]+r[2])/2-a[0],cy=(r[1]+r[3])/2-a[1];
+                    if(cx*(a[0]-c.q[0])+cy*(a[1]-c.q[1])<0)score+=150;
+                }
                 score+=Math.abs(f-0.5)*40;
                 if(!best||score<best.score)best={score,side,anchor:map.getCoordinateFromPixel(a),rect:m};
             }
         }
-        if(!best)continue;
+        if(!best){labelOverlays[i].setPosition(undefined);continue;} // itinéraire hors de l'écran
         const pl=LABEL_SIDES[best.side];
         el.classList.add('tail-'+pl.tail);
         labelOverlays[i].setPositioning(pl.positioning);
