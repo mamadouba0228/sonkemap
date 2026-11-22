@@ -1087,7 +1087,7 @@
         .header-btn .badge,.poi-count,.multistop-badge{box-shadow:0 2px 6px rgba(11,27,51,.2);}
 
         /* ── Carte de recherche départ / destination ── */
-        .search-panel{top:calc(var(--header-h) + var(--safe-top) + 12px);}
+        .search-panel{top:calc(var(--header-h) + var(--safe-top) + 5px);}
         .search-card{border-radius:20px;border:1px solid rgba(255,255,255,.7);background:var(--glass);backdrop-filter:blur(16px) saturate(170%);-webkit-backdrop-filter:blur(16px) saturate(170%);box-shadow:var(--shadow-lg);transition:box-shadow .2s;}
         .search-card:focus-within{box-shadow:var(--shadow-lg),var(--ring);}
         .input-row{height:52px;padding:0 16px;}
@@ -2063,7 +2063,7 @@ const layerOSM=new ol.layer.Tile({source:new ol.source.OSM()});
 // grise « Map data not yet available ») là où le niveau demandé n'existe pas ; OpenLayers affiche alors
 // la tuile du niveau inférieur, préchargée grâce à « preload ».
 const ESRI='https://server.arcgisonline.com/ArcGIS/rest/services/';
-const ESRI_ATTR='Imagerie © <a href="https://www.esri.com" target="_blank" rel="noopener">Esri</a>, Vantor, Earthstar Geographics';
+const ESRI_ATTR='© <a href="https://www.esri.com" target="_blank" rel="noopener">Esri</a>, Vantor, Earthstar Geographics';
 function esriSource(service,attr,extra){return new ol.source.XYZ(Object.assign({url:ESRI+service+'/MapServer/tile/{z}/{y}/{x}?blankTile=false',maxZoom:19,crossOrigin:'anonymous',attributions:attr},extra));}
 // Netteté de l'imagerie :
 // - zDirection -1 : entre deux niveaux de zoom, prendre le niveau le plus détaillé (tuiles jamais agrandies) ;
@@ -2078,8 +2078,8 @@ function esriImagery(opts){
 const layerSat=esriImagery({visible:false});
 const layerHybrid=new ol.layer.Group({visible:false,layers:[
     esriImagery({}),
-    new ol.layer.Tile({source:esriSource('Reference/World_Transportation','Routes © Esri')}),
-    new ol.layer.Tile({source:esriSource('Reference/World_Boundaries_and_Places','Noms © Esri')})
+    new ol.layer.Tile({source:esriSource('Reference/World_Transportation',undefined)}),
+    new ol.layer.Tile({source:esriSource('Reference/World_Boundaries_and_Places',undefined)})
 ]});
 const srcRoute=new ol.source.Vector(),srcUser=new ol.source.Vector(),srcPoi=new ol.source.Vector();
 const styleUser=new ol.style.Style({image:new ol.style.Circle({radius:9,fill:new ol.style.Fill({color:'#1A6BFF'}),stroke:new ol.style.Stroke({color:'white',width:3})})});
