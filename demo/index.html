@@ -2368,8 +2368,17 @@ const layerOSM=new ol.layer.Tile({source:new ol.source.OSM()});
 // la tuile du niveau inférieur, préchargée grâce à « preload ».
 const ESRI='https://server.arcgisonline.com/ArcGIS/rest/services/';
 const ESRI_ATTR='Imagerie © <a href="https://www.esri.com" target="_blank" rel="noopener">Esri</a>, Vantor, Earthstar Geographics';
-function esriSource(service,attr){return new ol.source.XYZ({url:ESRI+service+'/MapServer/tile/{z}/{y}/{x}?blankTile=false',maxZoom:19,crossOrigin:'anonymous',attributions:attr});}
-function esriImagery(opts){return new ol.layer.Tile(Object.assign({source:esriSource('World_Imagery',ESRI_ATTR),preload:3,useInterimTilesOnError:true},opts));}
+function esriSource(service,attr,extra){return new ol.source.XYZ(Object.assign({url:ESRI+service+'/MapServer/tile/{z}/{y}/{x}?blankTile=false',maxZoom:19,crossOrigin:'anonymous',attributions:attr},extra));}
+// Netteté de l'imagerie :
+// - zDirection -1 : entre deux niveaux de zoom, prendre le niveau le plus détaillé (tuiles jamais agrandies) ;
+// - écrans haute définition (téléphones, portables) : tuiles déclarées en 128 px avec un ratio 2, pour que
+//   chaque pixel de l'écran corresponde à un pixel de l'image (un niveau de zoom plus détaillé qu'en temps normal).
+//   Les couches de noms et de routes gardent la taille normale, sinon le texte deviendrait minuscule.
+const ESRI_HD=(window.devicePixelRatio||1)>1;
+function esriImagery(opts){
+    const extra=ESRI_HD?{tileSize:128,tilePixelRatio:2,zDirection:-1}:{zDirection:-1};
+    return new ol.layer.Tile(Object.assign({source:esriSource('World_Imagery',ESRI_ATTR,extra),preload:3,useInterimTilesOnError:true},opts));
+}
 const layerSat=esriImagery({visible:false});
 const layerHybrid=new ol.layer.Group({visible:false,layers:[
     esriImagery({}),
