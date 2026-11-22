@@ -2373,6 +2373,12 @@ function placeRouteLabels(){
         if(cs.visibility==='hidden'||parseFloat(cs.opacity)<0.1)return;
         obstacles.push([b.left-mapBox.left,b.top-mapBox.top,b.right-mapBox.left,b.bottom-mapBox.top]);
     });
+    // Marqueurs de départ et d'arrivée : épingle + étiquette du nom au-dessus (≈ 100 × 80 px)
+    [points[0],points[1]].forEach(pt=>{
+        if(!pt)return;
+        const p=map.getPixelFromCoordinate(ol.proj.fromLonLat(pt));
+        if(p)obstacles.push([p[0]-55,p[1]-80,p[0]+55,p[1]+6]);
+    });
     // Tracés en pixels écran (points trop proches fusionnés)
     const lines=routeAlternatives.map(r=>{
         if(!r._proj)r._proj=r.coords.map(c=>ol.proj.fromLonLat(c));
@@ -2408,9 +2414,10 @@ function placeRouteLabels(){
         if(other){
             const div=cands.filter(c=>c.d>=14);
             if(div.length)cands=div;
-            else{ // zoom très éloigné : les trajets se confondent presque, on prend les points les plus écartés
-                const maxD=Math.max(0,...cands.map(c=>c.d));
-                cands=cands.filter(c=>c.d>=maxD*0.7);
+            else if(i!==selectedRouteIdx){
+                // Aucune partie séparée visible (zoom sur une portion commune, ou très éloigné) :
+                // on ne pourrait pas savoir à quel trajet la bulle se rapporte → seule celle du trajet choisi reste
+                labelOverlays[i].setPosition(undefined);continue;
             }
         }
         const step=Math.max(1,Math.floor(cands.length/40));
