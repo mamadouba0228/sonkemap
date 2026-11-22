@@ -228,14 +228,14 @@
         .speed-limit-widget.show{display:flex;}
         .speed-limit-val{font-size:15px;font-weight:900;color:var(--red);font-family:'DM Mono',monospace;line-height:1;}
         .speed-limit-lbl{font-size:7px;font-weight:700;color:var(--red);letter-spacing:.3px;}
-        .compass-fab{position:fixed;left:14px;top:calc(50% - 22px);width:44px;height:44px;border-radius:50%;background:var(--card);box-shadow:0 4px 18px rgba(0,0,0,.18);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;z-index:2050;}
+        .compass-fab{position:fixed;left:14px;top:calc(50% - 74px);width:44px;height:44px;border-radius:50%;background:var(--card);box-shadow:0 4px 18px rgba(0,0,0,.18);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;z-index:2050;}
         .compass-fab:active{transform:scale(.92);}
         .compass-fab.active{border-color:var(--blue);background:#EEF4FF;}
         .compass-needle{width:22px;height:22px;transition:transform .4s cubic-bezier(.4,0,.2,1);will-change:transform;display:block;}
         .left-tool-btn{position:fixed;left:14px;width:44px;height:44px;border-radius:50%;background:var(--card);box-shadow:0 4px 18px rgba(0,0,0,.18);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;z-index:2050;font-size:19px;-webkit-tap-highlight-color:transparent;}
         .left-tool-btn:active{transform:scale(.92);}
         .left-tool-btn.active{border-color:var(--orange);background:#FFF6E8;box-shadow:0 4px 18px rgba(255,149,0,.3);}
-        #btn-altit{top:calc(50% + 38px);}
+        #btn-altit{top:calc(50% - 22px);}
         .geo-result-card{position:fixed;left:68px;background:var(--card);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.18);border:1px solid var(--border);z-index:2300;display:none;min-width:220px;max-width:280px;overflow:hidden;touch-action:none;user-select:none;}
         .geo-result-card.show{display:block;}
         .geo-result-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px 7px;border-bottom:1px solid var(--border);background:var(--bg);cursor:grab;}
@@ -1526,7 +1526,6 @@
     <button class="dlp-export-btn" id="dlp-export-btn">📥 Exporter en CSV</button>
 </div>
 <div class="fab-voice" id="fab-voice">🔊</div>
-<div class="danger-fab" id="btn-danger">⚠️</div>
 
 <div class="share-overlay" id="share-overlay"></div>
 <div class="share-panel" id="share-panel">
@@ -2308,7 +2307,7 @@ const LABEL_SIDES={
     left: {positioning:'center-right', offset:[-LABEL_GAP,0],tail:'right'}
 };
 // Éléments de l'interface posés sur la carte, que les bulles doivent éviter
-const LABEL_OBSTACLES='header.header,.search-card,#btn-danger,#btn-compass,#btn-altit,#btn-map-search,#btn-measure-fab,#waze-report-btn,.bottom-panel > *,.ol-attribution';
+const LABEL_OBSTACLES='header.header,.search-card,#btn-compass,#btn-altit,#btn-map-search,#btn-measure-fab,#waze-report-btn,.bottom-panel > *,.ol-attribution';
 
 function labelRect(side,ax,ay,w,h){
     switch(side){
@@ -2861,7 +2860,6 @@ const coucheDanger=new ol.layer.Vector({source:srcDanger,zIndex:8,style:f=>{cons
 map.addLayer(coucheDanger);
 let dangerActive=false,lastDangerAlert=0;
 function toggleDangerZones(){dangerActive=!dangerActive;$('#btn-danger').toggleClass('active',dangerActive);if(!dangerActive){srcDanger.clear();showToast('⚠️ Zones de danger masquées');return;}const center=userCoord||points[0];if(!center){showToast('⚠️ Activez le GPS d\'abord');dangerActive=false;$('#btn-danger').removeClass('active');return;}const[lon,lat]=center;showToast('⚠️ Chargement des zones de danger…');const q=`[out:json][timeout:20];\n(\n  node["highway"="speed_bump"](around:5000,${lat},${lon});\n  node["highway"="speed_hump"](around:5000,${lat},${lon});\n  node["railway"="level_crossing"](around:5000,${lat},${lon});\n  node["highway"="stop"](around:5000,${lat},${lon});\n  node["traffic_calming"](around:5000,${lat},${lon});\n);\nout center 200;`;$.getJSON(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`,data=>{srcDanger.clear();const els=data.elements||[];els.forEach(e=>{const elat=e.lat||(e.center&&e.center.lat);const elon=e.lon||(e.center&&e.center.lon);if(!elat||!elon)return;let type='warning';const tags=e.tags||{};if(tags.highway==='speed_bump'||tags.highway==='speed_hump'||tags.traffic_calming)type='bump';else if(tags.railway==='level_crossing'||tags.highway==='stop')type='crossing';const f=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([elon,elat]))});f.set('dangerType',type);srcDanger.addFeature(f);});showToast(`⚠️ ${els.length} zones de danger dans un rayon de 5 km`);}).fail(()=>showToast('❌ Erreur lors du chargement'));}
-$('#btn-danger').on('click',toggleDangerZones);
 
 // ── PARTAGE ──
 function openSharePanel(){$('#share-panel').addClass('open');$('#share-overlay').addClass('show');}
