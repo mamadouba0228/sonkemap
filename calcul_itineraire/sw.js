@@ -57,7 +57,7 @@ self.addEventListener('fetch', function(event) {
     if (url.includes('openrouteservice.org')) return;
     if (url.includes('nominatim.openstreetmap.org')) return;
     if (url.includes('overpass-api.de')) return;
-    if (url.includes('mt1.google.com')) return;
+    if (url.includes('arcgisonline.com')) return;
     if (url.includes('tile.openstreetmap.org')) return;
 
     event.respondWith(
