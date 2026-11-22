@@ -1608,8 +1608,8 @@
 </div>
 
 <!-- Labels itinéraires -->
-<div id="route-label-0" class="route-label" style="display:none;position:absolute;z-index:2150;"></div>
-<div id="route-label-1" class="route-label alt-label" style="display:none;position:absolute;z-index:2140;"></div>
+<div id="route-label-0" class="route-label" style="display:none;z-index:2150;"></div>
+<div id="route-label-1" class="route-label alt-label" style="display:none;z-index:2140;"></div>
 
 <div class="place-card" id="place-card">
     <div class="place-card-inner">
@@ -2262,67 +2262,134 @@ function showRouteLabels(){
     const modeIcon=MODE_ICONS[currentMode]||'🚗';
     routeAlternatives.forEach((r,i)=>{
         const info=getArrivalInfo(r.duration);
-        const isBest=i===0;
         const speedKmh=r.duration>0?Math.round(parseFloat(r.distanceKm)/(r.duration/60)):0;
         const el=document.getElementById('route-label-'+i);
         if(!el)return;
         el.innerHTML=`<div class="route-label-body"><div class="route-label-dur">${modeIcon} ${info.durationText}</div><div class="route-label-dist">${r.distanceKm} km · ~${speedKmh} km/h</div></div>`;
-        if(!r._label)r._label=computeLabelPlacement(i);
-        const pl=LABEL_SIDES[r._label.side];
-        el.className='route-label tail-'+pl.tail+(i===1?' alt-label':'')+(i===selectedRouteIdx?' selected':'');
         el.style.display='flex';
         el.dataset.idx=i;
-        labelOverlays[i].setPositioning(pl.positioning);
-        labelOverlays[i].setOffset(pl.offset);
-        labelOverlays[i].setPosition(r._label.anchor);
     });
     if(routeAlternatives.length<2){const el1=document.getElementById('route-label-1');if(el1)el1.style.display='none';labelOverlays[1].setPosition(undefined);}
+    placeRouteLabels();
 }
 
-// Côté où poser la bulle par rapport au point d'ancrage sur le tracé
+// Côté où poser la bulle par rapport au point d'ancrage sur le tracé (décalage de 9 px pour la pointe)
+const LABEL_GAP=9;
 const LABEL_SIDES={
-    up:   {positioning:'bottom-center',offset:[0,-9],tail:'bottom'},
-    down: {positioning:'top-center',   offset:[0,9], tail:'top'},
-    right:{positioning:'center-left',  offset:[9,0], tail:'left'},
-    left: {positioning:'center-right', offset:[-9,0],tail:'right'}
+    up:   {positioning:'bottom-center',offset:[0,-LABEL_GAP],tail:'bottom'},
+    down: {positioning:'top-center',   offset:[0,LABEL_GAP], tail:'top'},
+    right:{positioning:'center-left',  offset:[LABEL_GAP,0], tail:'left'},
+    left: {positioning:'center-right', offset:[-LABEL_GAP,0],tail:'right'}
 };
-// Choisit le point d'ancrage et le côté de la bulle (calculé une fois par itinéraire) :
-// - avec une alternative : le point du tracé le plus éloigné de l'autre itinéraire, bulle tournée
-//   à l'opposé de celui-ci → les deux bulles ne se chevauchent pas et désignent clairement leur trajet ;
-// - sinon : le milieu du trajet, bulle tournée vers l'extérieur de la courbe.
-function computeLabelPlacement(i){
-    const coords=routeAlternatives[i].coords.map(c=>ol.proj.fromLonLat(c));
-    const n=coords.length;
-    let anchor=coords[Math.floor(n/2)],from=null;
-    const other=routeAlternatives.length>1?routeAlternatives[i===0?1:0]:null;
-    if(other&&n>2){
-        const otherLine=new ol.geom.LineString(other.coords.map(c=>ol.proj.fromLonLat(c)));
-        const step=Math.max(1,Math.floor(n/150));
-        let best=-1;
-        // On ignore les 10 % aux extrémités : les trajets y sont communs (départ, arrivée)
-        for(let k=Math.floor(n*0.1);k<Math.ceil(n*0.9);k+=step){
-            const q=otherLine.getClosestPoint(coords[k]);
-            const d=Math.hypot(coords[k][0]-q[0],coords[k][1]-q[1]);
-            if(d>best){best=d;anchor=coords[k];from=q;}
-        }
-        if(best<1)from=null; // trajets confondus : retour au cas simple
+// Éléments de l'interface posés sur la carte, que les bulles doivent éviter
+const LABEL_OBSTACLES='header.header,.search-card,#btn-danger,#btn-compass,#btn-altit,#btn-map-search,#btn-measure-fab,#waze-report-btn,.bottom-panel > *,.ol-attribution';
+
+function labelRect(side,ax,ay,w,h){
+    switch(side){
+        case 'up':   return[ax-w/2,ay-LABEL_GAP-h,ax+w/2,ay-LABEL_GAP];
+        case 'down': return[ax-w/2,ay+LABEL_GAP,ax+w/2,ay+LABEL_GAP+h];
+        case 'right':return[ax+LABEL_GAP,ay-h/2,ax+LABEL_GAP+w,ay+h/2];
+        default:     return[ax-LABEL_GAP-w,ay-h/2,ax-LABEL_GAP,ay+h/2];
     }
-    if(!from){
-        // Centre du trajet (moyenne des points) : la bulle part dans la direction opposée
-        let sx=0,sy=0;coords.forEach(p=>{sx+=p[0];sy+=p[1];});
-        from=[sx/n,sy/n];
-        if(Math.hypot(anchor[0]-from[0],anchor[1]-from[1])<1){
-            // Trajet rectiligne : perpendiculaire au tracé
-            const a=coords[Math.max(0,Math.floor(n/2)-1)],b=coords[Math.min(n-1,Math.floor(n/2)+1)];
-            from=[anchor[0]+(b[1]-a[1]),anchor[1]-(b[0]-a[0])];
+}
+function rectOverlap(a,b){
+    const w=Math.min(a[2],b[2])-Math.max(a[0],b[0]),h=Math.min(a[3],b[3])-Math.max(a[1],b[1]);
+    return w>0&&h>0?w*h:0;
+}
+// Le segment [p,q] traverse-t-il le rectangle r ? (Liang-Barsky)
+function segHitsRect(p,q,r){
+    let t0=0,t1=1;const dx=q[0]-p[0],dy=q[1]-p[1];
+    const ps=[-dx,dx,-dy,dy],qs=[p[0]-r[0],r[2]-p[0],p[1]-r[1],r[3]-p[1]];
+    for(let k=0;k<4;k++){
+        if(ps[k]===0){if(qs[k]<0)return false;continue;}
+        const t=qs[k]/ps[k];
+        if(ps[k]<0){if(t>t1)return false;if(t>t0)t0=t;}else{if(t<t0)return false;if(t<t1)t1=t;}
+    }
+    return true;
+}
+// Nombre de segments des tracés qui passent sous la bulle
+function routeHits(r,lines){
+    let n=0;
+    for(const pts of lines){
+        for(let k=1;k<pts.length;k++){
+            const p=pts[k-1],q=pts[k];
+            if(Math.max(p[0],q[0])<r[0]||Math.min(p[0],q[0])>r[2]||Math.max(p[1],q[1])<r[1]||Math.min(p[1],q[1])>r[3])continue;
+            if(segHitsRect(p,q,r))n++;
         }
     }
-    const dx=anchor[0]-from[0],dy=anchor[1]-from[1]; // en coordonnées carte : y vers le haut
-    const side=Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'up':'down');
-    return{anchor,side};
+    return n;
+}
+
+// Place les bulles à l'écran : pour chaque itinéraire, on essaie une vingtaine de points le long
+// du tracé et les 4 côtés, et on garde l'emplacement qui ne cache ni les tracés, ni les boutons,
+// ni l'autre bulle, en restant dans l'écran. Recalculé après chaque déplacement ou zoom.
+function placeRouteLabels(){
+    if(!routeAlternatives.length||isNavigating)return;
+    const size=map.getSize();if(!size)return;
+    const W=size[0],H=size[1];
+    const mapBox=map.getViewport().getBoundingClientRect(); // la carte commence sous l'en-tête
+    const obstacles=[];
+    document.querySelectorAll(LABEL_OBSTACLES).forEach(o=>{
+        const b=o.getBoundingClientRect();
+        if(b.width<1||b.height<1)return;
+        const cs=getComputedStyle(o);
+        if(cs.visibility==='hidden'||parseFloat(cs.opacity)<0.1)return;
+        obstacles.push([b.left-mapBox.left,b.top-mapBox.top,b.right-mapBox.left,b.bottom-mapBox.top]);
+    });
+    // Tracés en pixels écran (points trop proches fusionnés)
+    const lines=routeAlternatives.map(r=>{
+        if(!r._proj)r._proj=r.coords.map(c=>ol.proj.fromLonLat(c));
+        const out=[];
+        for(const c of r._proj){
+            const p=map.getPixelFromCoordinate(c);if(!p)continue;
+            const l=out[out.length-1];
+            if(!l||Math.abs(p[0]-l[0])+Math.abs(p[1]-l[1])>3)out.push(p);
+        }
+        return out;
+    });
+    const order=routeAlternatives.map((_,i)=>i).sort((a,b)=>(b===selectedRouteIdx)-(a===selectedRouteIdx));
+    const placed=[];
+    for(const i of order){
+        const el=document.getElementById('route-label-'+i);
+        const pts=lines[i];
+        if(!el||pts.length<2)continue;
+        el.className='route-label'+(i===1?' alt-label':'')+(i===selectedRouteIdx?' selected':'');
+        // OpenLayers masque la bulle tant qu'elle n'a pas de position : on lui en donne une pour la mesurer
+        if(!labelOverlays[i].getPosition())labelOverlays[i].setPosition(map.getCoordinateFromPixel(pts[0]));
+        const w=el.offsetWidth||110,h=el.offsetHeight||34;
+        const other=lines.length>1?lines[i===0?1:0]:null;
+        let best=null;
+        const N=24;
+        for(let s=1;s<N;s++){
+            const f=s/N;
+            const a=pts[Math.min(pts.length-1,Math.floor(f*pts.length))];
+            // Distance à l'autre tracé : on préfère ancrer là où les trajets se séparent
+            let dOther=200;
+            if(other){dOther=Infinity;for(let k=0;k<other.length;k+=2){const d=Math.abs(other[k][0]-a[0])+Math.abs(other[k][1]-a[1]);if(d<dOther)dOther=d;}}
+            for(const side in LABEL_SIDES){
+                const r=labelRect(side,a[0],a[1],w,h);
+                const m=[r[0]-6,r[1]-6,r[2]+6,r[3]+6]; // marge (pointe, ombre)
+                let score=0;
+                if(m[0]<0||m[1]<0||m[2]>W||m[3]>H)score+=10000;
+                for(const o of obstacles)score+=rectOverlap(m,o)*3;
+                for(const p of placed)score+=rectOverlap(m,p)*20;
+                score+=routeHits(m,lines)*400;
+                score-=Math.min(dOther,120)*2;
+                score+=Math.abs(f-0.5)*40;
+                if(!best||score<best.score)best={score,side,anchor:map.getCoordinateFromPixel(a),rect:m};
+            }
+        }
+        if(!best)continue;
+        const pl=LABEL_SIDES[best.side];
+        el.classList.add('tail-'+pl.tail);
+        labelOverlays[i].setPositioning(pl.positioning);
+        labelOverlays[i].setOffset(pl.offset);
+        labelOverlays[i].setPosition(best.anchor);
+        placed.push(best.rect);
+    }
 }
 function hideRouteLabels(){[0,1].forEach(i=>{const el=document.getElementById('route-label-'+i);if(el)el.style.display='none';labelOverlays[i].setPosition(undefined);});}
-map.getView().on('change:resolution',()=>{if(routeAlternatives.length>0 && !isNavigating)showRouteLabels();});
+map.on('moveend',()=>{if(routeAlternatives.length>0 && !isNavigating && $('#route-label-0').css('display')!=='none')placeRouteLabels();});
 
 $(document).on('click','#route-label-0,#route-label-1',function(){selectRoute(parseInt($(this).data('idx')));});
 map.on('click',function(e){
