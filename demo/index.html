@@ -675,6 +675,14 @@
 
         .dgm-del-btn{display:block;width:100%;padding:12px;background:#FFF0F0;color:var(--red);border:1.5px solid rgba(255,59,48,.3);border-radius:14px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;text-align:center;}
         .dgm-del-btn:active{transform:scale(.97);background:#FFE0DE;}
+        .dgm-vote-row{display:flex;gap:8px;}
+        .dgm-vote-btn{flex:1;padding:12px 8px;border-radius:14px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:transform .15s;}
+        .dgm-vote-btn:active{transform:scale(.97);}
+        .dgm-vote-btn.still{background:#E8FFF4;color:#00894A;border:1.5px solid rgba(0,184,92,.35);}
+        .dgm-vote-btn.gone{background:#FFF0F0;color:var(--red);border:1.5px solid rgba(255,59,48,.3);}
+        .dgm-vote-btn:disabled{opacity:.5;cursor:default;}
+        .dgm-vote-info{font-size:11px;color:var(--text-2);margin-top:6px;text-align:center;min-height:14px;}
+        .danger-item-gone{background:#FFF0F0;border:1px solid rgba(255,59,48,.25);border-radius:8px;padding:5px 8px;font-size:10px;font-weight:700;color:var(--red);cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;}
 
         .danger-item-zoom{background:#EEF4FF;border:1px solid rgba(26,107,255,.25);border-radius:8px;padding:5px 8px;font-size:13px;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;transition:all .2s;line-height:1;}
         .danger-item-zoom:active{transform:scale(.93);}
@@ -1500,6 +1508,14 @@
     </div>
     <div class="dgm-section" id="dgm-del-section">
         <button class="dgm-del-btn" id="dgm-del">🗑 Supprimer ce danger</button>
+    </div>
+    <div class="dgm-section" id="dgm-vote-section">
+        <div class="dgm-label">Ce danger est-il toujours là ?</div>
+        <div class="dgm-vote-row">
+            <button class="dgm-vote-btn still" id="dgm-still">👍 Toujours là</button>
+            <button class="dgm-vote-btn gone" id="dgm-gone">👎 Plus là</button>
+        </div>
+        <div class="dgm-vote-info" id="dgm-vote-info"></div>
     </div>
 </div>
 
@@ -3140,6 +3156,54 @@ function syncDelete(id){
     }, 10000).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
 }
 
+// ── Voter « Plus là » / « Toujours là » (comme Waze) ──
+function syncVote(id, vote){
+    return fetchTimeout(API_URL, {
+        method:  'POST',
+        headers: {'Content-Type':'application/json'},
+        body:    JSON.stringify({ action:'vote', id:id, vote:vote, deviceId:MY_DEVICE_ID })
+    }, 10000).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
+}
+// Votes déjà faits sur ce téléphone (pour ne pas revoter)
+function myVotes(){ try{ return JSON.parse(localStorage.getItem('snk_votes')||'{}'); }catch(e){ return {}; } }
+function rememberVote(id, vote){ const v = myVotes(); v[id] = vote; localStorage.setItem('snk_votes', JSON.stringify(v)); }
+
+function voteDanger(id, vote){
+    if(!syncActive){ showToast('📡 Hors connexion — réessayez plus tard', 3000); return; }
+    syncVote(id, vote).then(function(res){
+        rememberVote(id, vote);
+        if(res && res.removed){
+            userDangers = userDangers.filter(function(d){ return d.id !== id; });
+            localStorage.setItem('snk_dangers_local', JSON.stringify(userDangers));
+            refreshDangerLayer(); renderDangerList();
+            showToast('👍 Merci ! Le danger est retiré de la carte', 3000);
+        } else if(vote === 'gone'){
+            const d = userDangers.find(function(x){ return x.id === id; });
+            if(d) d.gone = res.gone || 1;
+            renderDangerList();
+            showToast('👍 Merci ! Il sera retiré si un autre usager confirme', 3500);
+        } else {
+            const d = userDangers.find(function(x){ return x.id === id; });
+            if(d){ d.gone = 0; d.seen = Date.now(); }
+            renderDangerList();
+            showToast('👍 Merci ! Le danger reste signalé', 3000);
+        }
+    }).catch(function(e){
+        showToast(/429/.test(e.message) ? '⏳ Trop de votes, réessayez plus tard' : '❌ Vote non envoyé, vérifiez la connexion', 3000);
+    });
+}
+function ageText(ts){
+    const m = Math.round((Date.now() - ts) / 60000);
+    return m < 60 ? m+' min' : m < 1440 ? Math.round(m/60)+' h' : Math.round(m/1440)+' j';
+}
+function voteInfoText(d){
+    if(!d) return '';
+    const parts = [];
+    if(d.seen) parts.push('👍 Confirmé il y a ' + ageText(d.seen));
+    if(d.gone) parts.push('👎 ' + d.gone + ' usager' + (d.gone>1?'s':'') + ' le signale' + (d.gone>1?'nt':'') + ' comme parti');
+    return parts.join(' · ');
+}
+
 // ── Polling ──
 function syncPoll(){
     syncRead()
@@ -3245,13 +3309,14 @@ function renderDangerList(){
              +   '<div class="danger-item-info">'
              +     '<div class="danger-item-label">'+t.label+who+'</div>'
              +     '<div class="danger-item-datetime">📅 '+dateStr+'&nbsp;&nbsp;&nbsp;🕐 '+heureStr+'</div>'
-             +     '<div class="danger-item-age">'+ageStr+'</div>'
+             +     '<div class="danger-item-age">'+ageStr+(voteInfoText(d) ? ' · '+voteInfoText(d) : '')+'</div>'
              +   '</div>'
              +   photoThumb
              +   '<div class="danger-item-actions">'
              +     '<button class="danger-item-go" data-lon="'+d.lon+'" data-lat="'+d.lat+'" data-label="'+t.emoji+' '+t.label+'" data-date="'+dateStr+'" data-heure="'+heureStr+'" data-did="'+d.id+'">🗺️ Y aller</button>'
              +     '<button class="danger-item-zoom" data-lon="'+d.lon+'" data-lat="'+d.lat+'" title="Voir sur la carte">🔍</button>'
-             +     (mine ? '<button class="danger-item-del" data-did="'+d.id+'">🗑</button>' : '')
+             +     (mine ? '<button class="danger-item-del" data-did="'+d.id+'">🗑</button>'
+                   : (myVotes()[d.id] === 'gone' ? '' : '<button class="danger-item-gone" data-did="'+d.id+'" title="Le danger n&#39;est plus là">👎 Plus là</button>'))
              +   '</div>'
              + '</div>';
     }).join('');
@@ -3458,9 +3523,14 @@ function openDangerGoModal(lon, lat, emoji, label, dateStr, heureStr, dangerId){
     $('#dgm-use-gps').addClass('active'); $('#dgm-use-addr').removeClass('active');
     $('#dgm-custom-block').hide(); $('#dgm-start-input').val('');
     $('#dgm-addr-results').hide().html('');
-    // Afficher/masquer le bouton supprimer selon si c'est notre danger
-    var canDelete = dgmDangerId !== null && isMyDanger(userDangers.find(function(x){ return x.id === dgmDangerId; }));
+    // Votre danger : supprimer. Danger d'un autre : voter « Toujours là » / « Plus là »
+    var dgmD = dgmDangerId !== null ? userDangers.find(function(x){ return x.id === dgmDangerId; }) : null;
+    var canDelete = !!dgmD && isMyDanger(dgmD);
     $('#dgm-del-section').toggle(canDelete);
+    $('#dgm-vote-section').toggle(!!dgmD && !canDelete);
+    var voted = dgmD ? myVotes()[dgmD.id] : null;
+    $('#dgm-still, #dgm-gone').prop('disabled', voted === 'gone');
+    $('#dgm-vote-info').text(voted === 'gone' ? '✔ Vous l\'avez signalé comme parti' : voteInfoText(dgmD));
     $('#danger-go-modal').addClass('open');
     $('#danger-go-overlay').addClass('show');
     closeDangerList();
@@ -3471,6 +3541,17 @@ function closeDangerGoModal(){
 }
 $('#dgm-close, #danger-go-overlay').on('click', closeDangerGoModal);
 
+$('#dgm-still, #dgm-gone').on('click', function(){
+    if(!dgmDangerId) return;
+    var vote = this.id === 'dgm-gone' ? 'gone' : 'still';
+    closeDangerGoModal();
+    voteDanger(dgmDangerId, vote);
+});
+// « Plus là » depuis la liste
+$(document).on('click', '.danger-item-gone', function(e){
+    e.stopPropagation();
+    voteDanger($(this).data('did'), 'gone');
+});
 $('#dgm-del').on('click', function(){
     if(!dgmDangerId){ closeDangerGoModal(); return; }
     closeDangerGoModal();
