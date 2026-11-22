@@ -9,6 +9,14 @@
 
 ---
 
+## Aperçu
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/itineraire.png" width="260" alt="Itinéraire Sonké → Labé avec deux alternatives"><br><sub>Itinéraire avec alternative</sub></td>
+  </tr>
+</table>
+
 ## Pourquoi
 
 En Guinée, les applications de navigation grand public couvrent mal le réseau local : pistes, routes inondées pendant la saison des pluies, contrôles, véhicules en panne sur la chaussée… SonkeMap s'appuie sur les données ouvertes d'OpenStreetMap et sur les signalements des usagers pour proposer un outil adapté au terrain, utilisable sur des téléphones d'entrée de gamme et avec une connexion faible.
