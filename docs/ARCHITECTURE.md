@@ -59,7 +59,6 @@ sonkemap/
 | 2565–2842   | Favoris, historique, altitude, météo   | `features/favorites/`, `services/elevation.js`, `services/weather.js` |
 | 2843–2870   | Menu POI                               | `features/poi/`, `services/poi.js`   |
 | 2871–3605   | Signalement et partage des dangers     | `features/dangers/`, `services/dangers.js` |
-| 3606–3979   | Boutique de cartes, deep links         | `features/shop/`                     |
 | 3980–4073   | Contact                                | `features/contact/`                  |
 | 4074–4499   | Multi-arrêts (plus proche voisin + 2-opt) | `features/multistop/`             |
 | 4500–4967   | Authentification (email, Google, SMS)  | `features/auth/`, `services/auth.js` |
