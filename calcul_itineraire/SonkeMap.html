@@ -2975,11 +2975,31 @@ const DANGER_TYPES = {
 };
 
 // ── ID unique par appareil ──
+// Secret propre au téléphone : il prouve au serveur qu'on est l'auteur d'un danger (pour le supprimer).
+// Il n'est jamais renvoyé par le serveur, qui n'en garde que l'empreinte (« owner »).
 const MY_DEVICE_ID = (function(){
-    let id = localStorage.getItem('snk_device_id');
-    if(!id){ id = 'U' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); localStorage.setItem('snk_device_id',id); }
+    let id = localStorage.getItem('snk_device_secret');
+    if(!id){
+        const b = new Uint8Array(16);
+        (window.crypto || window.msCrypto).getRandomValues(b);
+        id = 'S' + Array.from(b, x => x.toString(16).padStart(2,'0')).join('');
+        localStorage.setItem('snk_device_secret', id);
+    }
     return id;
 })();
+// Empreinte de cet appareil, calculée comme le serveur : sha256('snk:' + identifiant)
+let MY_OWNER = null;
+if(window.crypto && crypto.subtle){
+    crypto.subtle.digest('SHA-256', new TextEncoder().encode('snk:' + MY_DEVICE_ID)).then(function(buf){
+        MY_OWNER = Array.from(new Uint8Array(buf), x => x.toString(16).padStart(2,'0')).join('');
+        if(typeof refreshDangerLayer === 'function') refreshDangerLayer();
+    });
+}
+function isMyDanger(d){
+    if(!d) return false;
+    if(d.deviceId) return d.deviceId === MY_DEVICE_ID; // danger créé sur ce téléphone, pas encore relu du serveur
+    return !!(d.owner && MY_OWNER && d.owner === MY_OWNER);
+}
 
 let userDangers    = [];
 let dangerEditMode = false;
@@ -3011,7 +3031,7 @@ function refreshDangerLayer(){
         const f = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([d.lon, d.lat])) });
         f.set('dtype',  d.type);
         f.set('did',    d.id);
-        f.set('isMine', d.deviceId === MY_DEVICE_ID);
+        f.set('isMine', isMyDanger(d));
         srcUD.addFeature(f);
     });
     $('#waze-badge').text(userDangers.length).toggleClass('show', userDangers.length > 0);
@@ -3051,7 +3071,7 @@ function deleteDanger(id){
     if(syncActive){
         syncDelete(id)
             .then(function(){ showToast('✅ Danger supprimé pour tous'); })
-            .catch(function(){ showToast('✅ Danger supprimé (local)'); });
+            .catch(function(e){ showToast(/403/.test(e.message) ? "⛔ Seul l'auteur du signalement peut le supprimer" : '✅ Danger supprimé (local)', 3000); });
     } else {
         showToast('✅ Danger supprimé');
     }
@@ -3116,7 +3136,7 @@ function syncDelete(id){
     return fetchTimeout(API_URL, {
         method:  'POST',
         headers: {'Content-Type':'application/json'},
-        body:    JSON.stringify({ action:'delete', id:id })
+        body:    JSON.stringify({ action:'delete', id:id, deviceId:MY_DEVICE_ID })
     }, 10000).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
 }
 
@@ -3205,7 +3225,7 @@ function renderDangerList(){
     }
     var html = userDangers.map(function(d){
         const t    = DANGER_TYPES[d.type] || DANGER_TYPES.other;
-        const mine = d.deviceId === MY_DEVICE_ID;
+        const mine = isMyDanger(d);
         const dt   = new Date(d.ts);
         const jours   = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
         const moisArr = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
@@ -3231,7 +3251,7 @@ function renderDangerList(){
              +   '<div class="danger-item-actions">'
              +     '<button class="danger-item-go" data-lon="'+d.lon+'" data-lat="'+d.lat+'" data-label="'+t.emoji+' '+t.label+'" data-date="'+dateStr+'" data-heure="'+heureStr+'" data-did="'+d.id+'">🗺️ Y aller</button>'
              +     '<button class="danger-item-zoom" data-lon="'+d.lon+'" data-lat="'+d.lat+'" title="Voir sur la carte">🔍</button>'
-             +     '<button class="danger-item-del" data-did="'+d.id+'">🗑</button>'
+             +     (mine ? '<button class="danger-item-del" data-did="'+d.id+'">🗑</button>' : '')
              +   '</div>'
              + '</div>';
     }).join('');
@@ -3392,7 +3412,7 @@ function exportCSV(){
             a.lon,
             '"'+a.dateStr+'"',
             a.heureStr,
-            a.deviceId === MY_DEVICE_ID ? 'Moi' : 'Usager',
+            isMyDanger(a) ? 'Moi' : 'Usager',
             '"'+(a.statut||'actif')+'"',
             '"'+(a.suppressionStr||'')+'"'
         ].join(','));
@@ -3439,7 +3459,7 @@ function openDangerGoModal(lon, lat, emoji, label, dateStr, heureStr, dangerId){
     $('#dgm-custom-block').hide(); $('#dgm-start-input').val('');
     $('#dgm-addr-results').hide().html('');
     // Afficher/masquer le bouton supprimer selon si c'est notre danger
-    var canDelete = dgmDangerId !== null;
+    var canDelete = dgmDangerId !== null && isMyDanger(userDangers.find(function(x){ return x.id === dgmDangerId; }));
     $('#dgm-del-section').toggle(canDelete);
     $('#danger-go-modal').addClass('open');
     $('#danger-go-overlay').addClass('show');

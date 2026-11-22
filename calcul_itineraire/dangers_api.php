@@ -11,6 +11,15 @@ define('MAX_DANGERS', 500);       // max dangers stockés simultanément
 define('MAX_BODY_SIZE', 51200);   // 50 Ko max par requête (sans photo)
 define('RATE_LIMIT',  20);        // max requêtes par IP par minute
 define('RATE_WINDOW', 60);        // fenêtre en secondes
+define('MAX_WRITES_PER_DEVICE_HOUR', 10); // anti-spam : signalements par appareil et par heure
+define('MAX_WRITES_PER_IP_HOUR',     20); // anti-spam : signalements par IP et par heure
+
+// L'identifiant d'appareil est un secret connu du seul téléphone qui signale.
+// Le serveur n'en garde que l'empreinte (« owner ») : elle est publique,
+// mais seul le détenteur de l'identifiant peut supprimer ses dangers.
+function owner_of($deviceId) {
+    return hash('sha256', 'snk:' . $deviceId);
+}
 
 // ── CORS ──
 $allowed_origins = [
@@ -71,6 +80,12 @@ function read_dangers() {
     $data = array_filter($data, function($d) use ($now) {
         return isset($d['ts']) && ($now - $d['ts']) <= (TTL_SECONDS * 1000);
     });
+    // Anciens enregistrements : remplacer l'identifiant en clair par son empreinte
+    $data = array_map(function($d) {
+        if (!isset($d['owner']) && isset($d['deviceId'])) $d['owner'] = owner_of($d['deviceId']);
+        unset($d['deviceId']);
+        return $d;
+    }, $data);
     return array_values($data);
 }
 
@@ -79,7 +94,23 @@ function write_dangers($dangers) {
     // Garder seulement les MAX_DANGERS les plus récents
     usort($dangers, fn($a,$b) => ($b['ts'] ?? 0) - ($a['ts'] ?? 0));
     $dangers = array_slice($dangers, 0, MAX_DANGERS);
-    file_put_contents(DATA_FILE, json_encode(array_values($dangers)));
+    file_put_contents(DATA_FILE, json_encode(array_values($dangers)), LOCK_EX);
+}
+
+// ── Anti-spam : nombre de signalements d'une IP sur la dernière heure ──
+function check_ip_write_limit() {
+    $ip   = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $file = sys_get_temp_dir() . '/snk_writes_' . md5($ip) . '.json';
+    $now  = time();
+    $list = file_exists($file) ? (json_decode(file_get_contents($file), true) ?: []) : [];
+    $list = array_values(array_filter($list, fn($t) => ($now - $t) < 3600));
+    if (count($list) >= MAX_WRITES_PER_IP_HOUR) {
+        http_response_code(429);
+        echo json_encode(['error' => 'Trop de signalements depuis cette connexion. Réessayez plus tard.']);
+        exit;
+    }
+    $list[] = $now;
+    file_put_contents($file, json_encode($list), LOCK_EX);
 }
 
 // ── Valider un objet danger ──
@@ -87,7 +118,7 @@ function validate_danger($d) {
     global $VALID_TYPES;
 
     if (!is_array($d))                              return 'Format invalide';
-    if (!isset($d['id']) || !preg_match('/^D[a-z0-9]+$/i', $d['id']))
+    if (!isset($d['id']) || !is_string($d['id']) || !preg_match('/^D[a-z0-9]+$/i', $d['id']))
                                                     return 'ID invalide';
     if (!isset($d['lat']) || !is_numeric($d['lat'])) return 'Latitude invalide';
     if (!isset($d['lon']) || !is_numeric($d['lon'])) return 'Longitude invalide';
@@ -95,7 +126,8 @@ function validate_danger($d) {
     if ((float)$d['lon'] < -180 || (float)$d['lon'] > 180) return 'Longitude hors limites';
     if (!isset($d['type']) || !in_array($d['type'], $VALID_TYPES)) return 'Type de danger invalide';
     if (!isset($d['ts'])   || !is_numeric($d['ts']))  return 'Timestamp invalide';
-    if (!isset($d['deviceId']) || strlen($d['deviceId']) > 40) return 'DeviceId invalide';
+    if (!isset($d['deviceId']) || !is_string($d['deviceId']) || !preg_match('/^[A-Za-z0-9]{8,40}$/', $d['deviceId']))
+                                                    return 'DeviceId invalide';
 
     // Vérifier que le timestamp est raisonnable (pas dans le futur de plus d'1 min)
     $now_ms = time() * 1000;
@@ -104,15 +136,15 @@ function validate_danger($d) {
     return null; // OK
 }
 
-// ── Échapper les données pour la sortie ──
+// ── Échapper les données pour la sortie (jamais d'identifiant d'appareil en clair) ──
 function sanitize_danger($d) {
     return [
-        'id'       => htmlspecialchars($d['id'],       ENT_QUOTES, 'UTF-8'),
-        'lat'      => (float)$d['lat'],
-        'lon'      => (float)$d['lon'],
-        'type'     => htmlspecialchars($d['type'],     ENT_QUOTES, 'UTF-8'),
-        'ts'       => (int)$d['ts'],
-        'deviceId' => htmlspecialchars($d['deviceId'], ENT_QUOTES, 'UTF-8'),
+        'id'    => htmlspecialchars($d['id'],   ENT_QUOTES, 'UTF-8'),
+        'lat'   => (float)$d['lat'],
+        'lon'   => (float)$d['lon'],
+        'type'  => htmlspecialchars($d['type'], ENT_QUOTES, 'UTF-8'),
+        'ts'    => (int)$d['ts'],
+        'owner' => preg_match('/^[0-9a-f]{64}$/', $d['owner'] ?? '') ? $d['owner'] : '',
     ];
 }
 
@@ -164,10 +196,29 @@ if ($method === 'POST') {
             echo json_encode(['error' => $err]);
             exit;
         }
-        $danger = sanitize_danger($danger);
+        $owner   = owner_of($danger['deviceId']);
+        $danger['owner'] = $owner;
+        $danger  = sanitize_danger($danger);
         $dangers = read_dangers();
 
-        // Éviter les doublons (même ID)
+        // Anti-spam : signalements récents du même appareil
+        $hour_ago = (time() - 3600) * 1000;
+        $recent = array_filter($dangers, fn($d) => ($d['owner'] ?? '') === $owner && ($d['ts'] ?? 0) > $hour_ago);
+        if (count($recent) >= MAX_WRITES_PER_DEVICE_HOUR) {
+            http_response_code(429);
+            echo json_encode(['error' => 'Trop de signalements depuis cet appareil. Réessayez dans une heure.']);
+            exit;
+        }
+        check_ip_write_limit();
+
+        // Un identifiant déjà pris par un autre appareil ne peut pas être écrasé
+        foreach ($dangers as $d) {
+            if ($d['id'] === $danger['id'] && ($d['owner'] ?? '') !== $owner) {
+                http_response_code(409);
+                echo json_encode(['error' => 'Identifiant déjà utilisé']);
+                exit;
+            }
+        }
         $dangers = array_filter($dangers, fn($d) => $d['id'] !== $danger['id']);
         $dangers[] = $danger;
         write_dangers(array_values($dangers));
@@ -178,12 +229,27 @@ if ($method === 'POST') {
     // ── delete ──
     if ($action === 'delete') {
         $id = $body['id'] ?? '';
-        if (!preg_match('/^D[a-z0-9]+$/i', $id)) {
+        if (!is_string($id) || !preg_match('/^D[a-z0-9]+$/i', $id)) {
             http_response_code(400);
             echo json_encode(['error' => 'ID invalide']);
             exit;
         }
+        // Seul l'appareil qui a signalé le danger peut le supprimer
+        $deviceId = $body['deviceId'] ?? '';
+        if (!is_string($deviceId) || !preg_match('/^[A-Za-z0-9]{8,40}$/', $deviceId)) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Suppression réservée à l\'auteur du signalement']);
+            exit;
+        }
+        $owner   = owner_of($deviceId);
         $dangers = read_dangers();
+        foreach ($dangers as $d) {
+            if ($d['id'] === $id && ($d['owner'] ?? '') !== $owner) {
+                http_response_code(403);
+                echo json_encode(['error' => 'Suppression réservée à l\'auteur du signalement']);
+                exit;
+            }
+        }
         $dangers = array_filter($dangers, fn($d) => $d['id'] !== $id);
         write_dangers(array_values($dangers));
         echo json_encode(['ok' => true]);
