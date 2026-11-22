@@ -9,11 +9,13 @@ define('DATA_FILE',   __DIR__ . '/dangers_data.json');
 define('TTL_SECONDS', 86400);     // 24h : durée de vie d'un danger
 define('MAX_DANGERS', 500);       // max dangers stockés simultanément
 define('MAX_BODY_SIZE', 51200);   // 50 Ko max par requête (sans photo)
-define('RATE_LIMIT',  20);        // max requêtes par IP par minute
+define('RATE_LIMIT_READ',  600);  // lectures par IP par minute (une IP d'opérateur mobile est partagée par beaucoup d'usagers)
+define('RATE_LIMIT_WRITE',  60);  // écritures (signalement, vote, suppression) par IP par minute
 define('RATE_WINDOW', 60);        // fenêtre en secondes
 define('MAX_WRITES_PER_DEVICE_HOUR', 10); // anti-spam : signalements par appareil et par heure
-define('MAX_WRITES_PER_IP_HOUR',     20); // anti-spam : signalements et votes par IP et par heure
-define('GONE_VOTES_TO_REMOVE',        2); // « Plus là » de 2 usagers différents → danger retiré
+define('MAX_WRITES_PER_IP_HOUR',    120); // anti-spam : signalements et votes par IP et par heure (IP souvent partagée)
+define('GONE_VOTES_TO_REMOVE',        2); // « Plus là » de 2 usagers sur 2 connexions différentes → danger retiré
+define('GONE_VOTES_SAME_IP',          3); // ou de 3 usagers différents, même derrière la même IP d'opérateur
 
 // L'identifiant d'appareil est un secret connu du seul téléphone qui signale.
 // Le serveur n'en garde que l'empreinte (« owner ») : elle est publique,
@@ -44,9 +46,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // ── Rate limiting ──
-function check_rate_limit() {
+function check_rate_limit($kind, $limit) {
     $ip      = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    $file    = sys_get_temp_dir() . '/snk_rate_' . md5($ip) . '.json';
+    $file    = sys_get_temp_dir() . '/snk_rate_' . $kind . '_' . md5($ip) . '.json';
     $now     = time();
     $data    = ['count' => 0, 'start' => $now];
 
@@ -57,15 +59,16 @@ function check_rate_limit() {
         }
     }
     $data['count']++;
-    file_put_contents($file, json_encode($data));
+    file_put_contents($file, json_encode($data), LOCK_EX);
 
-    if ($data['count'] > RATE_LIMIT) {
+    if ($data['count'] > $limit) {
         http_response_code(429);
         echo json_encode(['error' => 'Trop de requêtes. Attendez 1 minute.']);
         exit;
     }
 }
-check_rate_limit();
+// Lectures (consultées toutes les 15 s par chaque appareil) et écritures ont des limites séparées
+check_rate_limit($_SERVER['REQUEST_METHOD'] === 'GET' ? 'r' : 'w', $_SERVER['REQUEST_METHOD'] === 'GET' ? RATE_LIMIT_READ : RATE_LIMIT_WRITE);
 
 // ── Types de danger valides ──
 $VALID_TYPES = ['car','truck','road_closed','accident','pothole','police','flood','fire','other'];
@@ -305,7 +308,7 @@ if ($method === 'POST') {
             if (!$already) $votes[] = ['o' => $owner, 'ip' => $iphash];
             // Il faut des usagers sur des connexions différentes (un seul téléphone ne suffit pas)
             $ips = count(array_unique(array_column($votes, 'ip')));
-            if (($d['owner'] ?? '') === $owner || $ips >= GONE_VOTES_TO_REMOVE) {
+            if (($d['owner'] ?? '') === $owner || $ips >= GONE_VOTES_TO_REMOVE || count($votes) >= GONE_VOTES_SAME_IP) {
                 array_splice($dangers, $idx, 1);
                 $removed = true;
             } else {
