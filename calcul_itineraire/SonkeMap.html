@@ -1231,10 +1231,20 @@
             .info-arrival{font-size:14px;}
             #info-card:has(#btn-start-nav:not([style*="none"])) .info-meta > :nth-child(n+4){display:none;}
         }
-        @media (max-width:370px){
+        /* En-tête : logo + 6 boutons demandent ~415 px ; on compacte sous 430 px (iPhone SE = 375 px) */
+        @media (max-width:430px){
+            .header-inner{padding:0 8px;}
+            .brand{gap:6px;}
             .brand-sub{display:none;}
             .header-actions{gap:3px;}
+            .header-sep{display:none;}
             .header-btn,.poi-group-btn,.contact-btn,.urg-btn,.multistop-btn{width:31px;height:31px;border-radius:10px;}
+        }
+        /* Très petits écrans (320 px) : le logo seul, sans le nom */
+        @media (max-width:350px){
+            .brand-text{display:none;}
+        }
+        @media (max-width:370px){
             .mode-btn{width:34px;}
             .layer-btn{width:36px;height:36px;}
             .fab{width:42px;height:42px;}
