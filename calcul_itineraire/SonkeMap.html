@@ -2362,14 +2362,17 @@ const POI_CFG={
 
 const layerOSM=new ol.layer.Tile({source:new ol.source.OSM()});
 // Fonds Esri (autorisés avec mention de la source).
-// En Guinée, Esri n'a des images partout que jusqu'au zoom 17 (au-delà : tuile « Map data not yet available »
-// à Labé, Kindia, Kankan, en brousse…). On s'arrête donc à 17 et OpenLayers agrandit les tuiles au-delà.
+// En Guinée, la précision maximale varie : zoom 19 à Conakry, Mamou, N'Zérékoré… mais seulement 17
+// à Labé, Kindia, Kankan ou en brousse. « blankTile=false » fait renvoyer une erreur (au lieu de l'image
+// grise « Map data not yet available ») là où le niveau demandé n'existe pas ; OpenLayers affiche alors
+// la tuile du niveau inférieur, préchargée grâce à « preload ».
 const ESRI='https://server.arcgisonline.com/ArcGIS/rest/services/';
 const ESRI_ATTR='Imagerie © <a href="https://www.esri.com" target="_blank" rel="noopener">Esri</a>, Vantor, Earthstar Geographics';
-function esriSource(service,attr){return new ol.source.XYZ({url:ESRI+service+'/MapServer/tile/{z}/{y}/{x}',maxZoom:17,crossOrigin:'anonymous',attributions:attr});}
-const layerSat=new ol.layer.Tile({source:esriSource('World_Imagery',ESRI_ATTR),visible:false});
+function esriSource(service,attr){return new ol.source.XYZ({url:ESRI+service+'/MapServer/tile/{z}/{y}/{x}?blankTile=false',maxZoom:19,crossOrigin:'anonymous',attributions:attr});}
+function esriImagery(opts){return new ol.layer.Tile(Object.assign({source:esriSource('World_Imagery',ESRI_ATTR),preload:3,useInterimTilesOnError:true},opts));}
+const layerSat=esriImagery({visible:false});
 const layerHybrid=new ol.layer.Group({visible:false,layers:[
-    new ol.layer.Tile({source:esriSource('World_Imagery',ESRI_ATTR)}),
+    esriImagery({}),
     new ol.layer.Tile({source:esriSource('Reference/World_Transportation','Routes © Esri')}),
     new ol.layer.Tile({source:esriSource('Reference/World_Boundaries_and_Places','Noms © Esri')})
 ]});
