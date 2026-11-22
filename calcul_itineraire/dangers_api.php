@@ -12,11 +12,13 @@ define('MAX_BODY_SIZE', 51200);   // 50 Ko max par requête (sans photo)
 define('RATE_LIMIT',  20);        // max requêtes par IP par minute
 define('RATE_WINDOW', 60);        // fenêtre en secondes
 define('MAX_WRITES_PER_DEVICE_HOUR', 10); // anti-spam : signalements par appareil et par heure
-define('MAX_WRITES_PER_IP_HOUR',     20); // anti-spam : signalements par IP et par heure
+define('MAX_WRITES_PER_IP_HOUR',     20); // anti-spam : signalements et votes par IP et par heure
+define('GONE_VOTES_TO_REMOVE',        2); // « Plus là » de 2 usagers différents → danger retiré
 
 // L'identifiant d'appareil est un secret connu du seul téléphone qui signale.
 // Le serveur n'en garde que l'empreinte (« owner ») : elle est publique,
-// mais seul le détenteur de l'identifiant peut supprimer ses dangers.
+// mais seul le détenteur de l'identifiant peut supprimer directement ses dangers.
+// Les autres usagers votent « Plus là » / « Toujours là », comme dans Waze.
 function owner_of($deviceId) {
     return hash('sha256', 'snk:' . $deviceId);
 }
@@ -78,7 +80,9 @@ function read_dangers() {
     // Nettoyer les dangers expirés
     $now  = time() * 1000; // millisecondes comme JS
     $data = array_filter($data, function($d) use ($now) {
-        return isset($d['ts']) && ($now - $d['ts']) <= (TTL_SECONDS * 1000);
+        // « Toujours là » (seen) prolonge la durée de vie
+        $last = max($d['ts'] ?? 0, $d['seen'] ?? 0);
+        return isset($d['ts']) && ($now - $last) <= (TTL_SECONDS * 1000);
     });
     // Anciens enregistrements : remplacer l'identifiant en clair par son empreinte
     $data = array_map(function($d) {
@@ -148,6 +152,14 @@ function sanitize_danger($d) {
     ];
 }
 
+// ── Version publique : votes résumés (on ne publie pas qui a voté) ──
+function public_danger($d) {
+    $p = sanitize_danger($d);
+    $p['gone'] = count($d['gone'] ?? []);   // nombre de « Plus là »
+    $p['seen'] = (int)($d['seen'] ?? 0);    // dernier « Toujours là » (ms), 0 si aucun
+    return $p;
+}
+
 // ════════════════════════════════
 // ROUTING
 // ════════════════════════════════
@@ -159,7 +171,7 @@ if ($method === 'GET') {
     $action = $_GET['action'] ?? '';
     if ($action === 'read') {
         $dangers = read_dangers();
-        $dangers = array_map('sanitize_danger', $dangers);
+        $dangers = array_map('public_danger', $dangers);
         echo json_encode($dangers);
         exit;
     }
@@ -253,6 +265,56 @@ if ($method === 'POST') {
         $dangers = array_filter($dangers, fn($d) => $d['id'] !== $id);
         write_dangers(array_values($dangers));
         echo json_encode(['ok' => true]);
+        exit;
+    }
+
+    // ── vote : « Plus là » (gone) ou « Toujours là » (still), par n'importe quel usager ──
+    if ($action === 'vote') {
+        $id       = $body['id'] ?? '';
+        $vote     = $body['vote'] ?? '';
+        $deviceId = $body['deviceId'] ?? '';
+        if (!is_string($id) || !preg_match('/^D[a-z0-9]+$/i', $id)
+            || !in_array($vote, ['gone', 'still'], true)
+            || !is_string($deviceId) || !preg_match('/^[A-Za-z0-9]{8,40}$/', $deviceId)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Vote invalide']);
+            exit;
+        }
+        $owner  = owner_of($deviceId);
+        $iphash = substr(hash('sha256', 'snk-ip:' . ($_SERVER['REMOTE_ADDR'] ?? '')), 0, 16);
+        $dangers = read_dangers();
+        $idx = null;
+        foreach ($dangers as $i => $d) { if ($d['id'] === $id) { $idx = $i; break; } }
+        if ($idx === null) {
+            echo json_encode(['ok' => true, 'removed' => true]); // déjà retiré ou expiré
+            exit;
+        }
+        check_ip_write_limit();
+        $d = $dangers[$idx];
+        $removed = false;
+
+        if ($vote === 'still') {
+            // Confirmé : les votes « Plus là » sont effacés et la durée de vie repart
+            $d['gone'] = [];
+            $d['seen'] = time() * 1000;
+            $dangers[$idx] = $d;
+        } else {
+            $votes = $d['gone'] ?? [];
+            $already = false;
+            foreach ($votes as $v) { if (($v['o'] ?? '') === $owner) { $already = true; break; } }
+            if (!$already) $votes[] = ['o' => $owner, 'ip' => $iphash];
+            // Il faut des usagers sur des connexions différentes (un seul téléphone ne suffit pas)
+            $ips = count(array_unique(array_column($votes, 'ip')));
+            if (($d['owner'] ?? '') === $owner || $ips >= GONE_VOTES_TO_REMOVE) {
+                array_splice($dangers, $idx, 1);
+                $removed = true;
+            } else {
+                $d['gone'] = $votes;
+                $dangers[$idx] = $d;
+            }
+        }
+        write_dangers(array_values($dangers));
+        echo json_encode(['ok' => true, 'removed' => $removed, 'gone' => $removed ? 0 : count($d['gone'] ?? [])]);
         exit;
     }
 
