@@ -173,9 +173,20 @@ $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'GET') {
     $action = $_GET['action'] ?? '';
     if ($action === 'read') {
-        $dangers = read_dangers();
-        $dangers = array_map('public_danger', $dangers);
-        echo json_encode($dangers);
+        header('Cache-Control: no-store');
+        $json = json_encode(array_map('public_danger', read_dangers()));
+        // Anciennes versions de l'app (sans « v ») : la liste brute, comme avant
+        if (!isset($_GET['v'])) { echo $json; exit; }
+        // Nouvelles versions : l'app envoie la version qu'elle a déjà ;
+        // si la liste n'a pas changé, on répond « same » (quelques octets) au lieu de toute la liste
+        $ver = substr(md5($json), 0, 12);
+        if ($_GET['v'] === $ver) {
+            echo json_encode(['v' => $ver, 'same' => true]);
+            exit;
+        }
+        // Liste complète, compressée si le navigateur l'accepte
+        if (extension_loaded('zlib') && !ini_get('zlib.output_compression')) ob_start('ob_gzhandler');
+        echo '{"v":"' . $ver . '","dangers":' . $json . '}';
         exit;
     }
     http_response_code(400);
