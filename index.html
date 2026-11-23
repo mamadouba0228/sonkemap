@@ -3158,13 +3158,21 @@ function fetchTimeout(url, options, ms){
 }
 
 // ── Lire tous les dangers ──
+// On envoie la version de la liste déjà reçue : si rien n'a changé, le serveur répond
+// « same » en quelques octets au lieu de renvoyer toute la liste (économie de données mobiles).
+// Renvoie null quand la liste est inchangée.
+let dangersVersion = '';
 function syncRead(){
-    return fetchTimeout(API_URL + '?action=read', {}, 10000)
+    return fetchTimeout(API_URL + '?action=read&v=' + encodeURIComponent(dangersVersion || '0'), {}, 10000)
         .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
         .then(function(data){
-            const now  = Date.now();
-            const list = Array.isArray(data) ? data : [];
-            return list.filter(function(d){ return d && d.id && (now-d.ts)<=TTL_MS; });
+            if(data && data.same) return null;
+            let list = [];
+            if(Array.isArray(data)) list = data;                      // ancien serveur
+            else if(data && Array.isArray(data.dangers)){ list = data.dangers; dangersVersion = data.v || ''; }
+            const now = Date.now();
+            // « Toujours là » (seen) prolonge la durée de vie, comme côté serveur
+            return list.filter(function(d){ return d && d.id && (now - Math.max(d.ts||0, d.seen||0)) <= TTL_MS; });
         });
 }
 
@@ -3238,6 +3246,7 @@ function voteInfoText(d){
 function syncPoll(){
     syncRead()
         .then(function(list){
+            if(list === null) return; // rien de nouveau sur le serveur
             userDangers = list;
             archiveDangersList(list); // archiver les dangers reçus
             refreshDangerLayer();
@@ -3249,7 +3258,9 @@ function syncPoll(){
 function startSync(){
     syncActive = true;
     syncPoll();
-    syncTimer = setInterval(syncPoll, 10000);
+    // Toutes les 15 s, seulement quand l'app est à l'écran (économise la batterie, les données et le serveur)
+    syncTimer = setInterval(function(){ if(!document.hidden) syncPoll(); }, 15000);
+    document.addEventListener('visibilitychange', function(){ if(!document.hidden && syncActive) syncPoll(); });
     showToast('🟢 Partage activé — dangers visibles par tous', 3000);
 }
 
