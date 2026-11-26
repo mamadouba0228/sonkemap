@@ -6,7 +6,7 @@
 
 // ── Clé API ORS (jamais visible côté client) ──
 define('ORS_API_KEY', 'VOTRE_CLE_ORS'); // copier ce fichier en ors_proxy.php et renseigner la clé
-define('ORS_BASE',    'https://api.openrouteservice.org');
+define('ORS_BASE',    'https://api.heigit.org'); // api.openrouteservice.org fermé le 24/11/2026
 
 // ── CORS : autoriser uniquement votre domaine ──
 $allowed_origins = [
@@ -88,7 +88,11 @@ $qs      = $_SERVER['QUERY_STRING'] ?? '';
 $qs = preg_replace('/(?:^|&)path=[^&]*/', '', $qs);
 $qs = ltrim($qs, '&');
 
-$url = ORS_BASE . $path . ($qs ? '?' . $qs : '');
+// Nouvelle structure HeiGIT : /openrouteservice/v2/... et /openelevationservice/v0/...
+$upstream = (strpos($path, "/elevation/") === 0)
+    ? "/openelevationservice/v0/" . substr($path, strlen("/elevation/"))
+    : "/openrouteservice" . $path;
+$url = ORS_BASE . $upstream . ($qs ? '?' . $qs : '');
 
 // ── Appel cURL vers ORS ──
 $ch = curl_init();

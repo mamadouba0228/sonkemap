@@ -2939,7 +2939,7 @@ map.on('singleclick',function(e){if(geoToolMode!=='altitude')return;const lonLat
         })
         .catch(function(){
             // Source 2 : ORS elevation
-            fetch(`${ORS_PROXY}?path=/elevation/point&geometry={"type":"Point","coordinates":[${lon.toFixed(6)},${lat.toFixed(6)}]}&format_out=geojson&dataset=srtm`)
+            fetch(`${ORS_PROXY}?path=/elevation/point&geometry=${lon.toFixed(6)},${lat.toFixed(6)}&format_out=geojson&dataset=srtm`)
                 .then(function(r){ return r.ok ? r.json() : Promise.reject('ors elev'); })
                 .then(function(d){
                     const e = d.geometry && d.geometry.coordinates ? d.geometry.coordinates[2] : null;
